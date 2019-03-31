@@ -91,7 +91,7 @@ public class TaoCryptoUtil implements CryptoUtil {
             }
 
             // Check if we have more than one server, in which case we must remove some of the bytes for the path
-            int numServers = TaoConfigs.PARTITION_SERVERS.size();
+            int numServers = 1;
             if (numServers > 1) {
                 // Calculate which is the first bucket in the path that we need to keep in the encryption
                 int firstNeededEncryptedBucketStart = (int) (Math.log(numServers) / Math.log(2));

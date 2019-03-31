@@ -3,6 +3,7 @@ package TaoServer;
 import Configuration.ArgumentParser;
 import Configuration.TaoConfigs;
 import Configuration.Utility;
+import Configuration.Unit;
 import Messages.MessageCreator;
 import Messages.MessageTypes;
 import Messages.ProxyRequest;
@@ -61,6 +62,8 @@ public class TaoServer implements Server {
 
     protected Map<ProxyRequest, Long> mReadStartTimes;
     protected Map<ProxyRequest, Long> mWriteStartTimes;
+
+    protected int unitId = 0;
 
     /**
      * @brief Constructor
@@ -366,12 +369,11 @@ public class TaoServer implements Server {
             AsynchronousChannelGroup threadGroup =
                     AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
 
+            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+
             // Create a channel
             AsynchronousServerSocketChannel channel =
-                    AsynchronousServerSocketChannel.open(threadGroup).bind(new InetSocketAddress(TaoConfigs.SERVER_PORT));
-
-            TaoLogger.logInfo("Created channel");
-            TaoLogger.logInfo("Port number: "+TaoConfigs.SERVER_PORT);
+                    AsynchronousServerSocketChannel.open(threadGroup).bind(new InetSocketAddress(u.serverPort));
 
             // Asynchronously wait for incoming connections
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {

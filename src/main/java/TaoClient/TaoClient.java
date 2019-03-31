@@ -85,7 +85,7 @@ public class TaoClient implements Client {
             mClientAddress = new InetSocketAddress(currentIP, TaoConfigs.CLIENT_PORT);
 
             // Initialize proxy address
-            mProxyAddress = new InetSocketAddress(TaoConfigs.PROXY_HOSTNAME, TaoConfigs.PROXY_PORT);
+            mProxyAddress = new InetSocketAddress(TaoConfigs.ORAM_UNITS.get(0).proxyHost, TaoConfigs.ORAM_UNITS.get(0).proxyPort);
 
             // Create message creator
             mMessageCreator = new TaoMessageCreator();

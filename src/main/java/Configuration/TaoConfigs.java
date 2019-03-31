@@ -81,6 +81,8 @@ public class TaoConfigs {
     // We only want to initialize constants once per run
     public static AtomicBoolean mHasBeenInitialized = new AtomicBoolean();
 
+    public static List<Unit> ORAM_UNITS = new ArrayList<>();
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -119,13 +121,6 @@ public class TaoConfigs {
                 String client_port = properties.getProperty("client_port");
                 CLIENT_PORT = Integer.parseInt(client_port);
 
-                // Assign proxy hostname
-                PROXY_HOSTNAME = properties.getProperty("proxy_hostname");
-
-                // Assign proxy port number
-                String proxy_port = properties.getProperty("proxy_port");
-                PROXY_PORT = Integer.parseInt(proxy_port);
-
                 // Assign block size without any meta data
                 String block_size = properties.getProperty("block_size");
                 BLOCK_SIZE = Integer.parseInt(block_size);
@@ -142,18 +137,20 @@ public class TaoConfigs {
                 String iv_size = properties.getProperty("iv_size");
                 IV_SIZE = Integer.parseInt(iv_size);
 
-                // Assign server port number
-                String server_port = properties.getProperty("server_port");
-                SERVER_PORT = Integer.parseInt(server_port);
+                String num_oram_units = properties.getProperty("num_oram_units");
+                int num_units = Integer.parseInt(num_oram_units);
 
-                // Make list of all the storage servers
-                String num_storage_servers = properties.getProperty("num_storage_servers");
-                int num_servers = Integer.parseInt(num_storage_servers);
-
-                PARTITION_SERVERS = new ArrayList<>();
-                for (int i = 0; i < num_servers; i++) {
-                    String serverName = properties.getProperty("storage_hostname" + Integer.toString(i + 1));
-                    PARTITION_SERVERS.add(new InetSocketAddress(serverName, SERVER_PORT));
+                for (int i = 0; i < num_units; i++) {
+                    String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));
+                    String proxyHost = properties.getProperty("proxy_hostname" + Integer.toString(i));
+                    int serverPort = Integer.parseInt(properties.getProperty("server_port" + Integer.toString(i))); 
+                    int proxyPort = Integer.parseInt(properties.getProperty("proxy_port" + Integer.toString(i))); 
+                    Unit u = new Unit();
+                    u.serverHost = serverHost;
+                    u.proxyHost = proxyHost;
+                    u.serverPort = serverPort;
+                    u.proxyPort = proxyPort;
+                    ORAM_UNITS.add(u);
                 }
 
                 // Calculate other configurations based on the above configs as well as the minimum required storage size

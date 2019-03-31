@@ -2,6 +2,7 @@ package TaoProxy;
 
 import Configuration.ArgumentParser;
 import Configuration.TaoConfigs;
+import Configuration.Unit;
 
 import Messages.*;
 import com.google.common.primitives.Bytes;
@@ -20,6 +21,8 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
+import java.util.List;
+import java.util.ArrayList;
 
 /**
  * @brief Class that represents the proxy which handles requests from clients and replies from servers
@@ -56,6 +59,8 @@ public class TaoProxy implements Proxy {
     // A Profiler to store timing information
     public Profiler mProfiler;
 
+    protected int unitId = 0;
+
     //public static final transient ReentrantLock mSubtreeLock = new ReentrantLock();
 
     /**
@@ -88,7 +93,11 @@ public class TaoProxy implements Proxy {
             mSubtree = subtree;
 
             // Create a position map
-            mPositionMap = new TaoPositionMap(TaoConfigs.PARTITION_SERVERS);
+            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            List<InetSocketAddress> storageServerAddresses = new ArrayList();
+            InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
+            storageServerAddresses.add(serverAddr);
+            mPositionMap = new TaoPositionMap(storageServerAddresses);
 
             // Assign the message and path creators
             mMessageCreator = messageCreator;
@@ -99,7 +108,7 @@ public class TaoProxy implements Proxy {
 
             // Map each leaf to a relative leaf for the servers
             mRelativeLeafMapper = new HashMap<>();
-            int numServers = TaoConfigs.PARTITION_SERVERS.size();
+            int numServers = 1;
             int numLeaves = 1 << TaoConfigs.TREE_HEIGHT;
             int leavesPerPartition = numLeaves / numServers;
             for (int i = 0; i < numLeaves; i += numLeaves/numServers) {
@@ -145,7 +154,11 @@ public class TaoProxy implements Proxy {
             mSubtree = subtree;
 
             // Create a position map
-            mPositionMap = new TaoPositionMap(TaoConfigs.PARTITION_SERVERS);
+            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            List<InetSocketAddress> storageServerAddresses = new ArrayList();
+            InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
+            storageServerAddresses.add(serverAddr);
+            mPositionMap = new TaoPositionMap(storageServerAddresses);
 
             // Assign the message and path creators
             mMessageCreator = messageCreator;
@@ -160,7 +173,7 @@ public class TaoProxy implements Proxy {
 
             // Map each leaf to a relative leaf for the servers
             mRelativeLeafMapper = new HashMap<>();
-            int numServers = TaoConfigs.PARTITION_SERVERS.size();
+            int numServers = 1;
             int numLeaves = 1 << TaoConfigs.TREE_HEIGHT;
             int leavesPerPartition = numLeaves / numServers;
             for (int i = 0; i < numLeaves; i += numLeaves/numServers) {
@@ -194,26 +207,16 @@ public class TaoProxy implements Proxy {
             // Variables to both hold the data of a path as well as how big the path is
             byte[] dataToWrite;
 
-            // Create map that will map the addresses of the storage servers to sockets connected to that server
-            Map<InetSocketAddress, Socket> mSocketMap = new HashMap<>();
-            int numServers = TaoConfigs.PARTITION_SERVERS.size();
-
             // Create each connection
-            for (int i = 0; i < numServers; i++) {
-                TaoLogger.logInfo("Setting up connection with server "+i);
-                InetSocketAddress sa = TaoConfigs.PARTITION_SERVERS.get(i);
-                Socket socket = new Socket(sa.getHostName(), sa.getPort());
-                mSocketMap.put(sa, socket);
-            }
+            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            Socket serverSocket = new Socket(u.serverHost, u.serverPort);
 
             // Loop to write each path to server
             for (int i = 0; i < totalPaths; i++) {
                 TaoLogger.logForce("Creating path " + i);
 
-                // Get connection to server, then get input and output streams
-                InetSocketAddress sa = mPositionMap.getServerForPosition(i);
-                DataOutputStream output = new DataOutputStream(mSocketMap.get(sa).getOutputStream());
-                InputStream input = mSocketMap.get(sa).getInputStream();
+                DataOutputStream output = new DataOutputStream(serverSocket.getOutputStream());
+                InputStream input = serverSocket.getInputStream();
 
                 // Create empty paths and serialize
                 Path defaultPath = mPathCreator.createPath();
@@ -249,11 +252,7 @@ public class TaoProxy implements Proxy {
                 input.read(message);
             }
 
-            // Close each connection
-            for (int i = 0; i < numServers; i++) {
-                InetSocketAddress sa = TaoConfigs.PARTITION_SERVERS.get(i);
-                mSocketMap.get(sa).close();
-            }
+            serverSocket.close();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -282,9 +281,10 @@ public class TaoProxy implements Proxy {
     @Override
     public void run() {
         try {
+            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
             // Create an asynchronous channel to listen for connections
             AsynchronousServerSocketChannel channel =
-                    AsynchronousServerSocketChannel.open(mThreadGroup).bind(new InetSocketAddress(TaoConfigs.PROXY_PORT));
+                    AsynchronousServerSocketChannel.open(mThreadGroup).bind(new InetSocketAddress(u.proxyPort));
 
             // Asynchronously wait for incoming connections
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {

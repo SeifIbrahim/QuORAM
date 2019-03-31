@@ -2,6 +2,7 @@ package TaoProxy;
 
 import Configuration.TaoConfigs;
 import Configuration.Utility;
+import Configuration.Unit;
 import Messages.*;
 import com.google.common.collect.ConcurrentHashMultiset;
 import com.google.common.collect.Lists;
@@ -100,6 +101,8 @@ public class TaoProcessor implements Processor {
 
     // The Profiler to store timing information
     protected Profiler mProfiler;
+
+    protected int unitId = 0;
 
     /**
      * @brief Constructor
@@ -250,7 +253,7 @@ public class TaoProcessor implements Processor {
 
             // Do this to make sure we wait until connections are made if this is one of the first requests made by this
             // particular client
-            if (mChannelMap.size() < TaoConfigs.PARTITION_SERVERS.size()) {
+            if (mChannelMap.size() < 1) {
                 makeInitialConnections(req.getClientAddress());
             }
 
@@ -498,7 +501,7 @@ public class TaoProcessor implements Processor {
     protected void makeInitialConnections(InetSocketAddress addr) {
         try {
             // Get the number of storage servers
-            int numServers = TaoConfigs.PARTITION_SERVERS.size();
+            int numServers = 1;
 
             // Create a new map
             Map<InetSocketAddress, AsynchronousSocketChannel> newMap = new HashMap<>();
@@ -520,14 +523,16 @@ public class TaoProcessor implements Processor {
                     // Create the channels to the storage servers
                     for (int i = 0; i < numServers; i++) {
                         AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
-                        Future connection = channel.connect(TaoConfigs.PARTITION_SERVERS.get(i));
+                        Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+                        InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
+                        Future connection = channel.connect(serverAddr);
                         connection.get();
 
                         // Add the channel to the map
-                        newMap.put(TaoConfigs.PARTITION_SERVERS.get(i), channel);
+                        newMap.put(serverAddr, channel);
 
                         // Add a new semaphore for this channel to the map
-                        newSemaphoreMap.put(TaoConfigs.PARTITION_SERVERS.get(i), new Semaphore(1));
+                        newSemaphoreMap.put(serverAddr, new Semaphore(1));
                     }
                 }
             }
