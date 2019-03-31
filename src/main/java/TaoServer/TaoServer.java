@@ -72,7 +72,7 @@ public class TaoServer implements Server {
 
         try {
             // Trace
-            TaoLogger.logLevel = TaoLogger.LOG_WARNING;
+            TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
             // No passed in properties file, will use defaults
             TaoConfigs.initConfiguration();
@@ -369,6 +369,9 @@ public class TaoServer implements Server {
             // Create a channel
             AsynchronousServerSocketChannel channel =
                     AsynchronousServerSocketChannel.open(threadGroup).bind(new InetSocketAddress(TaoConfigs.SERVER_PORT));
+
+            TaoLogger.logInfo("Created channel");
+            TaoLogger.logInfo("Port number: "+TaoConfigs.SERVER_PORT);
 
             // Asynchronously wait for incoming connections
             channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {

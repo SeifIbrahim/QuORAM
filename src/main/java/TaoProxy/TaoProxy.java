@@ -73,7 +73,7 @@ public class TaoProxy implements Proxy {
     public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree) {
         try {
             // For trace purposes
-            TaoLogger.logLevel = TaoLogger.LOG_OFF;
+            TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
             // For profiling purposes
             mProfiler = new TaoProfiler();
@@ -130,7 +130,7 @@ public class TaoProxy implements Proxy {
     public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, Processor processor) {
         try {
             // For trace purposes
-            TaoLogger.logLevel = TaoLogger.LOG_DEBUG;
+            TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
             // For profiling purposes
             mProfiler = new TaoProfiler();
@@ -200,6 +200,7 @@ public class TaoProxy implements Proxy {
 
             // Create each connection
             for (int i = 0; i < numServers; i++) {
+                TaoLogger.logInfo("Setting up connection with server "+i);
                 InetSocketAddress sa = TaoConfigs.PARTITION_SERVERS.get(i);
                 Socket socket = new Socket(sa.getHostName(), sa.getPort());
                 mSocketMap.put(sa, socket);

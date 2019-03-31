@@ -13,7 +13,7 @@ write_back_threshold=10
 client_port=12337
 
 # Proxy hostname and port
-proxy_hostname=10.138.0.4
+proxy_hostname=127.0.0.1
 proxy_port=12339
 
 # Size of blocks
@@ -40,7 +40,7 @@ num_storage_servers=1
 server_port=12338
 
 # name of all the servers, postfixed by a number
-storage_hostname1=10.138.0.3
+storage_hostname1=127.0.0.1
 # storage_hostname2=192.168.0.1
 # storage_hostname3=10.138.2.1
 # etc.
