@@ -102,7 +102,7 @@ public class TaoProcessor implements Processor {
     // The Profiler to store timing information
     protected Profiler mProfiler;
 
-    protected int unitId = 0;
+    protected int mUnitId;
 
     /**
      * @brief Constructor
@@ -116,8 +116,11 @@ public class TaoProcessor implements Processor {
      * @param positionMap
      * @param relativeMapper
      */
-    public TaoProcessor(Proxy proxy, Sequencer sequencer, AsynchronousChannelGroup threadGroup, MessageCreator messageCreator, PathCreator pathCreator, CryptoUtil cryptoUtil, Subtree subtree, PositionMap positionMap, Map<Long, Long> relativeMapper, Profiler profiler) {
+    public TaoProcessor(Proxy proxy, Sequencer sequencer, AsynchronousChannelGroup threadGroup, MessageCreator messageCreator, PathCreator pathCreator, CryptoUtil cryptoUtil, Subtree subtree, PositionMap positionMap, Map<Long, Long> relativeMapper, Profiler profiler, int unitId) {
         try {
+            // The ORAM unit that this processor belongs to
+            mUnitId = unitId;
+
             // The proxy that this processor belongs to
             mProxy = proxy;
 
@@ -523,7 +526,7 @@ public class TaoProcessor implements Processor {
                     // Create the channels to the storage servers
                     for (int i = 0; i < numServers; i++) {
                         AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
-                        Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+                        Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
                         InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
                         Future connection = channel.connect(serverAddr);
                         connection.get();

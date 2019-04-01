@@ -63,12 +63,14 @@ public class TaoServer implements Server {
     protected Map<ProxyRequest, Long> mReadStartTimes;
     protected Map<ProxyRequest, Long> mWriteStartTimes;
 
-    protected int unitId = 0;
+    protected int mUnitId = 0;
 
     /**
      * @brief Constructor
      */
-    public TaoServer(MessageCreator messageCreator) {
+    public TaoServer(MessageCreator messageCreator, int unitId) {
+        mUnitId = unitId;
+
         // Profiling
         mReadStartTimes = new ConcurrentHashMap<>();
         mWriteStartTimes = new ConcurrentHashMap<>();
@@ -369,7 +371,7 @@ public class TaoServer implements Server {
             AsynchronousChannelGroup threadGroup =
                     AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
 
-            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
 
             // Create a channel
             AsynchronousServerSocketChannel channel =
@@ -707,8 +709,10 @@ public class TaoServer implements Server {
             String configFileName = options.getOrDefault("config_file", TaoConfigs.USER_CONFIG_FILE);
             TaoConfigs.USER_CONFIG_FILE = configFileName;
 
+            int unitId = Integer.parseInt(options.get("unit"));
+
             // Create server and run
-            Server server = new TaoServer(new TaoMessageCreator());
+            Server server = new TaoServer(new TaoMessageCreator(), unitId);
             server.run();
         } catch (Exception e) {
             e.printStackTrace();

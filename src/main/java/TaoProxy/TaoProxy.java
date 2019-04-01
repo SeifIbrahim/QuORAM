@@ -59,7 +59,7 @@ public class TaoProxy implements Proxy {
     // A Profiler to store timing information
     public Profiler mProfiler;
 
-    protected int unitId = 0;
+    protected int mUnitId;
 
     //public static final transient ReentrantLock mSubtreeLock = new ReentrantLock();
 
@@ -75,7 +75,7 @@ public class TaoProxy implements Proxy {
      * @param pathCreator
      * @param subtree
      */
-    public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree) {
+    public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, int unitId) {
         try {
             // For trace purposes
             TaoLogger.logLevel = TaoLogger.LOG_INFO;
@@ -92,8 +92,10 @@ public class TaoProxy implements Proxy {
             // Assign subtree
             mSubtree = subtree;
 
+            mUnitId = unitId;
+
             // Create a position map
-            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
             List<InetSocketAddress> storageServerAddresses = new ArrayList();
             InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
             storageServerAddresses.add(serverAddr);
@@ -123,7 +125,7 @@ public class TaoProxy implements Proxy {
 
             // Initialize the sequencer and proxy
             mSequencer = new TaoSequencer(mMessageCreator, mPathCreator);
-            mProcessor = new TaoProcessor(this, mSequencer, mThreadGroup, mMessageCreator, mPathCreator, mCryptoUtil, mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler);
+            mProcessor = new TaoProcessor(this, mSequencer, mThreadGroup, mMessageCreator, mPathCreator, mCryptoUtil, mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler, mUnitId);
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -136,8 +138,10 @@ public class TaoProxy implements Proxy {
      * @param subtree
      * @param processor
      */
-    public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, Processor processor) {
+    public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, Processor processor, int unitId) {
         try {
+            mUnitId = unitId;
+
             // For trace purposes
             TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
@@ -154,7 +158,7 @@ public class TaoProxy implements Proxy {
             mSubtree = subtree;
 
             // Create a position map
-            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
             List<InetSocketAddress> storageServerAddresses = new ArrayList();
             InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
             storageServerAddresses.add(serverAddr);
@@ -208,7 +212,7 @@ public class TaoProxy implements Proxy {
             byte[] dataToWrite;
 
             // Create each connection
-            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
             Socket serverSocket = new Socket(u.serverHost, u.serverPort);
 
             // Loop to write each path to server
@@ -281,7 +285,7 @@ public class TaoProxy implements Proxy {
     @Override
     public void run() {
         try {
-            Unit u = TaoConfigs.ORAM_UNITS.get(unitId);
+            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
             // Create an asynchronous channel to listen for connections
             AsynchronousServerSocketChannel channel =
                     AsynchronousServerSocketChannel.open(mThreadGroup).bind(new InetSocketAddress(u.proxyPort));
@@ -404,8 +408,11 @@ public class TaoProxy implements Proxy {
             String configFileName = options.getOrDefault("config_file", TaoConfigs.USER_CONFIG_FILE);
             TaoConfigs.USER_CONFIG_FILE = configFileName;
 
+            // Get the ORAM unit id
+            int unitId = Integer.parseInt(options.get("unit"));
+
             // Create proxy
-            TaoProxy proxy = new TaoProxy(new TaoMessageCreator(), new TaoBlockCreator(), new TaoSubtree());
+            TaoProxy proxy = new TaoProxy(new TaoMessageCreator(), new TaoBlockCreator(), new TaoSubtree(), unitId);
 
             // Initialize and run server
             proxy.initializeServer();

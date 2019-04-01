@@ -18,6 +18,11 @@ proxy_port0=12339
 server_hostname0=127.0.0.1
 server_port0=12338
 
+proxy_hostname1=127.0.0.1
+proxy_port1=13339
+server_hostname1=127.0.0.1
+server_port1=13338
+
 # Size of blocks
 block_size=4096
 
@@ -39,6 +44,6 @@ min_server_size=10
 num_storage_servers=1
 
 # The amout of ORAM units
-num_oram_units=1
+num_oram_units=2
 
 
