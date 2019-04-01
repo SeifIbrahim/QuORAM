@@ -19,6 +19,8 @@ public class TaoProxyResponse implements ProxyResponse {
     // The data from the read block if responding to a read request
     private byte[] mReturnData;
 
+    private byte[] mReturnTag;
+
     // The status of the request write if responding to a write request
     private boolean mWriteStatus;
 
@@ -42,6 +44,9 @@ public class TaoProxyResponse implements ProxyResponse {
 
         int writeStatus = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
         mWriteStatus = writeStatus == 1 ? true : false;
+        startIndex += 4;
+
+        mReturnTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
     }
 
     @Override
@@ -65,6 +70,19 @@ public class TaoProxyResponse implements ProxyResponse {
     }
 
     @Override
+    public Tag getReturnTag() {
+        System.out.println("going to ");
+        Tag tag = new Tag();
+        tag.initFromSerialized(mReturnTag);
+        return tag;
+    }
+
+    @Override
+    public void setReturnTag(Tag tag) {
+        mReturnTag = tag.serialize();
+    }
+
+    @Override
     public boolean getWriteStatus() {
         return mWriteStatus;
     }
@@ -76,9 +94,10 @@ public class TaoProxyResponse implements ProxyResponse {
 
     @Override
     public byte[] serialize() {
+
         byte[] clientIDBytes = Longs.toByteArray(mClientRequestID);
         int writeStatusInt = mWriteStatus ? 1 : 0;
         byte[] writeStatusBytes = Ints.toByteArray(writeStatusInt);
-        return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes);
+        return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, mReturnTag);
     }
 }

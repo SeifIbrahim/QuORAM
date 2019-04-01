@@ -31,7 +31,7 @@ blocks_in_bucket=4
 
 # The size of the meta information for each block. This is implementation specific
 # so be careful when changing it
-block_meta_data_size=8
+block_meta_data_size=18
 
 # The size of the initialization vector to be used for encryption. This is also specific
 # to the type of encryption being used, so be careful when changing it
@@ -44,6 +44,6 @@ min_server_size=10
 num_storage_servers=1
 
 # The amout of ORAM units
-num_oram_units=2
+num_oram_units=1
 
 

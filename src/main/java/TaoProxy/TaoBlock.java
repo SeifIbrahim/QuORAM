@@ -2,6 +2,7 @@ package TaoProxy;
 
 import Configuration.TaoConfigs;
 import com.google.common.primitives.Bytes;
+import com.google.common.primitives.Shorts;
 import com.google.common.primitives.Longs;
 
 import java.util.Arrays;
@@ -17,12 +18,15 @@ public class TaoBlock implements Block {
     // The data of this block
     private byte[] mData;
 
+    private Tag mTag;
+
     /**
      * @brief Default constructor
      */
     public TaoBlock() {
         mID = -1;
         mData = new byte[TaoConfigs.BLOCK_SIZE];
+        mTag = new Tag();
     }
 
     /**
@@ -32,6 +36,7 @@ public class TaoBlock implements Block {
     public TaoBlock(long blockID) {
         mID = blockID;
         mData = new byte[TaoConfigs.BLOCK_SIZE];
+        mTag = new Tag();
     }
 
     @Override
@@ -44,11 +49,14 @@ public class TaoBlock implements Block {
     public void initFromSerialized(byte[] serialized) {
         try {
             mID = Longs.fromByteArray(Arrays.copyOfRange(serialized, 0, 8));
+            mTag = new Tag();
+            mTag.initFromSerialized(Arrays.copyOfRange(serialized, 8, 18));
             mData = new byte[TaoConfigs.BLOCK_SIZE];
             System.arraycopy(serialized, TaoConfigs.BLOCK_META_DATA_SIZE, mData, 0, TaoConfigs.BLOCK_SIZE);
         } catch (Exception e) {
             mID = -1;
             mData = new byte[TaoConfigs.BLOCK_SIZE];
+            System.out.println("ERROR: unable to deserialize block");
         }
     }
 
@@ -83,6 +91,16 @@ public class TaoBlock implements Block {
     }
 
     @Override
+    public Tag getTag() {
+        return mTag;
+    }
+
+    @Override
+    public void setTag(Tag tag) {
+        mTag = tag;
+    }
+
+    @Override
     public Block getCopy() {
         Block b = new TaoBlock();
         b.initFromBlock(this);
@@ -92,7 +110,8 @@ public class TaoBlock implements Block {
     @Override
     public byte[] serialize() {
         byte[] idBytes = Longs.toByteArray(mID);
-        return Bytes.concat(idBytes, mData);
+        byte[] tagBytes = mTag.serialize();
+        return Bytes.concat(idBytes, tagBytes, mData);
     }
 
     @Override

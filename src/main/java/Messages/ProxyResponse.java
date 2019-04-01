@@ -1,5 +1,7 @@
 package Messages;
 
+import TaoProxy.Tag;
+
 /**
  * @brief Interface the represents the response of a proxy to the client
  */
@@ -34,6 +36,10 @@ public interface ProxyResponse {
      * @param data
      */
     void setReturnData(byte[] data);
+
+    Tag getReturnTag();
+
+    void setReturnTag(Tag tag);
 
     /**
      * @brief Get the status of a client write request

@@ -538,6 +538,7 @@ public class TaoClient implements Client {
 
             // Send read request
             ProxyResponse response = sendRequestWait(request, unitID);
+            System.out.println(response.getReturnTag());
             return response.getReturnData();
         };
 

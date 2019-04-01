@@ -28,6 +28,10 @@ public interface Block {
      */
     void setBlockID(long blockID);
 
+    Tag getTag();
+
+    void setTag(Tag tag);
+
     /**
      * @brief Get a copy of the block
      * @return
