@@ -268,6 +268,7 @@ public class TaoProxy implements Proxy {
         // mSequencer.onReceiveRequest(req);
 
         // We send the request to the processor, starting with the read path method
+        TaoLogger.logInfo("Got a client request for "+req.getBlockID());
         mProcessor.readPath(req);
     }
 
@@ -277,6 +278,7 @@ public class TaoProxy implements Proxy {
         // write back
         //mSubtreeLock.lock();
         mProcessor.answerRequest(req, resp, isFakeRead);
+        TaoLogger.logInfo("Answering a client request for "+req.getBlockID());
         mProcessor.flush(resp.getPathID());
         //mSubtreeLock.unlock();
         mProcessor.writeBack(TaoConfigs.WRITE_BACK_THRESHOLD);

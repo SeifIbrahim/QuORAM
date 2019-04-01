@@ -104,7 +104,7 @@ public class TaoServer implements Server {
             // Initialize file pointers
             mFilePointers = new Stack<>();
             for (int i = 0; i < WRITE_BACK_THREADS + READ_PATH_THREADS; i++) {
-                RandomAccessFile diskFile = new RandomAccessFile(TaoConfigs.ORAM_FILE, "rwd");
+                RandomAccessFile diskFile = new RandomAccessFile(TaoConfigs.ORAM_FILE+mUnitId, "rwd");
                 diskFile.setLength(mServerSize);
                 mFilePointers.push(diskFile);
             }

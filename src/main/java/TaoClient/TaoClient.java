@@ -244,22 +244,66 @@ public class TaoClient implements Client {
     }
 
 
-    public boolean logicalOperation(long blockID, byte[] data, boolean isWrite) {
+    public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
         // Broadcast read(blockID) to all ORAM units
+        Map<Integer, Future<byte[]>> readResponsesWaiting = new HashMap();
+        for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+            System.out.println("Sending read to "+i);
+            readResponsesWaiting.put(i, readAsync(blockID, i));
+        }
 
         // Wait for a read quorum (here a simple majority) of responses
+        byte[] writebackVal = null;
+        while(readResponsesWaiting.size() >= (TaoConfigs.ORAM_UNITS.size()/2 + .5)) {
+            Iterator it = readResponsesWaiting.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<Integer, Future<byte[]>> entry = (Map.Entry)it.next();
+                if (entry.getValue().isDone()) {
+                    try {
+                        System.out.println("Got value from proxy "+entry.getKey());
+                        byte[] val = entry.getValue().get();
+                        writebackVal = val;
+                        it.remove();
+                    } catch (Exception e) {
+                        System.out.println(e);
+                    }
+                }
+            }
+        }
 
         // Set writeback value to the value with the greatest tag
 
         // If write, set writeback value to client's value
         // and increment tag
+        if (isWrite) {
+            writebackVal = data;
+        }
 
         // Broadcast write(blockID, writeback value, writeback tag)
         // to all ORAM units
+        Map<Integer, Future<Boolean>> writeResponsesWaiting = new HashMap();
+        for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+            System.out.println("Sending write to "+i);
+            writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, i));
+        }
 
         // Wait for a write quorum of acks (here a simple majority)
+        while(readResponsesWaiting.size() >= (TaoConfigs.ORAM_UNITS.size()/2 + .5)) {
+            Iterator it = writeResponsesWaiting.entrySet().iterator();
+            while (it.hasNext()) {
+                Map.Entry<Integer, Future<Boolean>> entry = (Map.Entry)it.next();
+                if (entry.getValue().isDone()) {
+                    try {
+                        System.out.println("Got ack from proxy "+entry.getKey());
+                        it.remove();
+                    } catch (Exception e) {
+                        System.out.println(e);
+                    }
+                }
+            }
+        }
 
-        return true;
+        return writebackVal;
     }
 
     /**
@@ -775,9 +819,9 @@ public class TaoClient implements Client {
 
                         TaoLogger.logForce("Going to send write request for " + blockID);
                         //TODO: change to use logical write
-                        boolean writeStatus = client.write(blockID, dataToWrite, 0);
+                        byte[] writeStatus = client.logicalOperation(blockID, dataToWrite, true);
 
-                        if (!writeStatus) {
+                        if (writeStatus == null) {
                             TaoLogger.logForce("Write failed");
                             System.exit(1);
                         }
@@ -788,9 +832,13 @@ public class TaoClient implements Client {
 
                         TaoLogger.logForce("Going to send read request for " + blockID);
                         //TODO: change to use logical write
-                        byte[] result = client.read(blockID, 0);
+                        byte[] result = client.logicalOperation(blockID, null, false);
 
-                        TaoLogger.logForce("The result of the read is a block filled with the number " + result[0]);
+                        if (result != null) {
+                            TaoLogger.logForce("The result of the read is a block filled with the number " + result[0]);
+                        } else {
+                            TaoLogger.logForce("The block is null");
+                        }
                         TaoLogger.logForce("Last number in the block is  " + result[result.length - 1]);
                     } else if (option.equals("P")) {
                         client.printSubtree();
