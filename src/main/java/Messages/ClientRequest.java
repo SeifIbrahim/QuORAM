@@ -1,5 +1,7 @@
 package Messages;
 
+import TaoProxy.Tag;
+
 import java.net.InetSocketAddress;
 
 /**
@@ -47,6 +49,10 @@ public interface ClientRequest {
      * @param data
      */
     void setData(byte[] data);
+
+    Tag getTag();
+
+    void setTag(Tag tag);
 
     /**
      * @brief Get this request's unique ID

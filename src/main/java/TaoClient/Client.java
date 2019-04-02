@@ -1,5 +1,7 @@
 package TaoClient;
 
+import TaoProxy.Tag;
+import Messages.ProxyResponse;
 
 import java.util.concurrent.Future;
 
@@ -27,7 +29,7 @@ public interface Client {
      * @param blockID
      * @return a Future that will eventually have the data from block with block id == blockID
      */
-    Future<byte[]> readAsync(long blockID, int unitID);
+    Future<ProxyResponse> readAsync(long blockID, int unitID);
 
     /**
      * @brief Asynchronously write data to proxy
@@ -35,7 +37,7 @@ public interface Client {
      * @param data
      * @return a Future that will eventually return a boolean revealing if the write was successful
      */
-    Future<Boolean> writeAsync(long blockID, byte[] data, int unitID);
+    Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID);
 
     /**
      * @brief Ask proxy to print it's subtree. Used for debugging

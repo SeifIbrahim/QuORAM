@@ -17,7 +17,7 @@ public interface Sequencer {
      * @brief Handle the receiving of a server response
      * @param resp
      */
-    void onReceiveResponse(ClientRequest req, ServerResponse resp , byte[] data);
+    void onReceiveResponse(ClientRequest req, ServerResponse resp , byte[] data, Tag tag);
 
     /**
      * @brief Method to ensure that each reply from server is returned to client in correct order

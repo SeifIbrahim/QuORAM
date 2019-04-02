@@ -10,6 +10,8 @@ public class ResponseMapEntry {
     // The data returned from the server corresponding to this request
     private byte[] mData;
 
+    private Tag mTag;
+
     /**
      * @brief Default constructor
      */
@@ -34,6 +36,10 @@ public class ResponseMapEntry {
         return mData;
     }
 
+    public Tag getTag() {
+        return mTag;
+    }
+
     /**
      * @brief Mutator for mReturned
      * @param returned
@@ -49,5 +55,9 @@ public class ResponseMapEntry {
      */
     public void setData(byte[] data) {
         mData = data.clone();
+    }
+
+    public void setTag(Tag tag) {
+        mTag = tag;
     }
 }

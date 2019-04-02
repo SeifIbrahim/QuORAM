@@ -580,7 +580,7 @@ public class TaoProcessor implements Processor {
             // The real read has already appeared, so we can answer the client
 
             // Send the data to the sequencer
-            mSequencer.onReceiveResponse(req, resp, responseMapEntry.getData());
+            mSequencer.onReceiveResponse(req, resp, responseMapEntry.getData(), responseMapEntry.getTag());
 
             // Remove this request from the response map
             mResponseMap.remove(req);
@@ -613,27 +613,34 @@ public class TaoProcessor implements Processor {
 
                 // Now we get the data from the desired block
                 byte[] foundData;
+                Tag foundTag;
                 // First, from the subtree, find the bucket that has a block with blockID == req.getBlockID()
                 if (elementDoesExist) {
                     TaoLogger.logDebug("BlockID " + req.getBlockID() + " should exist somewhere");
                     // The element should exist somewhere
-                    foundData = getDataFromBlock(currentRequest.getBlockID());
+                    Block b = getDataFromBlock(currentRequest.getBlockID());
+                    foundData = b.getData();
+                    foundTag = b.getTag();
                 } else {
                     TaoLogger.logDebug("BlockID " + req.getBlockID() + " does not yet exist");
                     // The element has never been created before
                     foundData = new byte[TaoConfigs.BLOCK_SIZE];
+                    foundTag = new Tag();
                 }
 
+                //TODO: only overwrite existing data if new tag is >= old
                 // Check if the request was a write
                 if (currentRequest.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
                     TaoLogger.logDebug("Write request BlockID " + req.getBlockID());
+                    System.out.println("\n\nTAG IS "+currentRequest.getTag()+"\n\n");
                     if (elementDoesExist) {
                         // The element should exist somewhere
-                        writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData());
+                        writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData(), currentRequest.getTag());
                     } else {
                         Block newBlock = mPathCreator.createBlock();
                         newBlock.setBlockID(currentRequest.getBlockID());
                         newBlock.setData(currentRequest.getData());
+                        newBlock.setTag(currentRequest.getTag());
 
                         // Add block to stash and assign random path position
                         mStash.addBlock(newBlock);
@@ -652,10 +659,11 @@ public class TaoProcessor implements Processor {
                 // Check if the server has responded to this request yet
                 // NOTE: This is the part that answers all fake reads
                 responseMapEntry.setData(foundData);
+                responseMapEntry.setTag(foundTag);
                 if (mResponseMap.get(currentRequest).getRetured()) {
                     TaoLogger.logDebug("answerRequest requestID " + currentRequest.getRequestID() + " from host " + currentRequest.getClientAddress().getHostName() + " is going to be responded to");
                     // Send the data to sequencer
-                    mSequencer.onReceiveResponse(currentRequest, resp, foundData);
+                    mSequencer.onReceiveResponse(currentRequest, resp, foundData, foundTag);
 
                     // Remove this request from the response map
                     mResponseMap.remove(currentRequest);
@@ -690,7 +698,7 @@ public class TaoProcessor implements Processor {
      * @param blockID
      * @return the data from block
      */
-    public byte[] getDataFromBlock(long blockID) {
+    public Block getDataFromBlock(long blockID) {
         TaoLogger.logDebug("Trying to get data for blockID " + blockID);
         TaoLogger.logDebug("I think this is at path: " + mPositionMap.getBlockPosition(blockID));
 
@@ -705,7 +713,7 @@ public class TaoProcessor implements Processor {
             if (targetBucket != null) {
                 // If we found the bucket in the subtree, we can attempt to get the data from the block in bucket
                 TaoLogger.logDebug("Bucket containing block found in subtree");
-                byte[] data = targetBucket.getDataFromBlock(blockID);
+                Block data = targetBucket.getDataFromBlock(blockID);
 
                 // Check if this data is not null
                 if (data != null) {
@@ -727,7 +735,7 @@ public class TaoProcessor implements Processor {
                 if (targetBlock != null) {
                     // If we found the block in the stash, return the data
                     TaoLogger.logDebug("Returning data for block " + blockID);
-                    return targetBlock.getData();
+                    return targetBlock;
                 } else {
                     // If we did not find the block, we LOOK AGAIN
                     TaoLogger.logDebug("scuba Cannot find in subtree or stash");
@@ -753,9 +761,10 @@ public class TaoProcessor implements Processor {
      * @param blockID
      * @param data
      */
-    public void writeDataToBlock(long blockID, byte[] data) {
+    public void writeDataToBlock(long blockID, byte[] data, Tag tag) {
         TaoLogger.logDebug("Trying to write data for blockID " + blockID);
         TaoLogger.logDebug("I think this is at path: " + mPositionMap.getBlockPosition(blockID));
+        System.out.println("WRITING TAG "+tag);
 
         // Due to multiple threads moving blocks around, we need to run this in a loop
         while (true) {
@@ -763,7 +772,7 @@ public class TaoProcessor implements Processor {
             Bucket targetBucket = mSubtree.getBucketWithBlock(blockID);
             if (targetBucket != null) {
                 // If the bucket was found, we modify a block
-                if (targetBucket.modifyBlock(blockID, data)) {
+                if (targetBucket.modifyBlock(blockID, data, tag)) {
                     return;
                 }
             } else {
@@ -773,6 +782,8 @@ public class TaoProcessor implements Processor {
                 // If the block was found in the stash, we set the data for the block
                 if (targetBlock != null) {
                     targetBlock.setData(data);
+                    targetBlock.setTag(tag);
+                    System.out.println("Block's tag is now "+targetBlock.getTag());
                     return;
                 }
             }

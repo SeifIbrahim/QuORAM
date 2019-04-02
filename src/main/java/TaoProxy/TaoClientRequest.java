@@ -24,6 +24,8 @@ public class TaoClientRequest implements ClientRequest {
     // Either MessageTypes.CLIENT_READ_REQUEST or MessageTypes.CLIENT_WRITE_REQUEST
     protected byte[] mData;
 
+    protected byte[] mTag;
+
     // ID that will uniquely identify this request
     protected long mRequestID;
 
@@ -61,6 +63,8 @@ public class TaoClientRequest implements ClientRequest {
         startIndex += 4;
         // Cache to avoid having to recreate InetSocketAddress object
         mClientAddress = ClientAddressCache.getFromCache(hostname, Integer.toString(port));
+        mTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
+        startIndex += 10;
     }
 
     @Override
@@ -94,6 +98,20 @@ public class TaoClientRequest implements ClientRequest {
     }
 
     @Override
+    public Tag getTag() {
+        Tag tag = new Tag();
+        if (mTag != null) {
+            tag.initFromSerialized(mTag);
+        }
+        return tag;
+    }
+
+    @Override
+    public void setTag(Tag tag) {
+        mTag = tag.serialize();
+    }
+
+    @Override
     public long getRequestID() {
         return mRequestID;
     }
@@ -122,7 +140,7 @@ public class TaoClientRequest implements ClientRequest {
         byte[] hostnameBytes = mClientAddress.getHostName().getBytes(StandardCharsets.UTF_8);
         byte[] portBytes = Ints.toByteArray(mClientAddress.getPort());
 
-        return Bytes.concat(blockIDBytes, typeBytes, idBytes, mData, hostnameLengthBytes, hostnameBytes, portBytes);
+        return Bytes.concat(blockIDBytes, typeBytes, idBytes, mData, hostnameLengthBytes, hostnameBytes, portBytes, mTag);
     }
 
     @Override

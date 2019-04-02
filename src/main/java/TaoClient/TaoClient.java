@@ -212,7 +212,7 @@ public class TaoClient implements Client {
     public byte[] read(long blockID, int unitID) {
         try {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null, null);
 
             // Send read request
             ProxyResponse response = sendRequestWait(request, unitID);
@@ -230,7 +230,7 @@ public class TaoClient implements Client {
     public boolean write(long blockID, byte[] data, int unitID) {
         try {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, null, null);
 
             // Send write request
             ProxyResponse response = sendRequestWait(request, unitID);
@@ -246,7 +246,7 @@ public class TaoClient implements Client {
 
     public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
         // Broadcast read(blockID) to all ORAM units
-        Map<Integer, Future<byte[]>> readResponsesWaiting = new HashMap();
+        Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
             System.out.println("Sending read to "+i);
             readResponsesWaiting.put(i, readAsync(blockID, i));
@@ -254,18 +254,22 @@ public class TaoClient implements Client {
 
         // Wait for a read quorum (here a simple majority) of responses
         byte[] writebackVal = null;
+        Tag tag = null;
         while(readResponsesWaiting.size() >= (TaoConfigs.ORAM_UNITS.size()/2 + .5)) {
             Iterator it = readResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
-                Map.Entry<Integer, Future<byte[]>> entry = (Map.Entry)it.next();
+                Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
                 if (entry.getValue().isDone()) {
                     try {
                         System.out.println("Got value from proxy "+entry.getKey());
-                        byte[] val = entry.getValue().get();
+                        System.out.println("Received tag "+entry.getValue().get().getReturnTag());
+                        byte[] val = entry.getValue().get().getReturnData();
                         writebackVal = val;
+                        tag = entry.getValue().get().getReturnTag();
                         it.remove();
                     } catch (Exception e) {
                         System.out.println(e);
+                        e.printStackTrace();
                     }
                 }
             }
@@ -277,21 +281,24 @@ public class TaoClient implements Client {
         // and increment tag
         if (isWrite) {
             writebackVal = data;
+            tag.seqNum = tag.seqNum + 1;
         }
+
+        System.out.println("New tag: "+tag);
 
         // Broadcast write(blockID, writeback value, writeback tag)
         // to all ORAM units
-        Map<Integer, Future<Boolean>> writeResponsesWaiting = new HashMap();
+        Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
             System.out.println("Sending write to "+i);
-            writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, i));
+            writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i));
         }
 
         // Wait for a write quorum of acks (here a simple majority)
         while(readResponsesWaiting.size() >= (TaoConfigs.ORAM_UNITS.size()/2 + .5)) {
             Iterator it = writeResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
-                Map.Entry<Integer, Future<Boolean>> entry = (Map.Entry)it.next();
+                Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
                 if (entry.getValue().isDone()) {
                     try {
                         System.out.println("Got ack from proxy "+entry.getKey());
@@ -314,7 +321,7 @@ public class TaoClient implements Client {
      * @param extras
      * @return a client request
      */
-    protected ClientRequest makeRequest(int type, long blockID, byte[] data, List<Object> extras) {
+    protected ClientRequest makeRequest(int type, long blockID, byte[] data, Tag tag, List<Object> extras) {
         // Keep track of requestID and increment it
         long requestID = mRequestID.getAndAdd(1);
 
@@ -323,6 +330,11 @@ public class TaoClient implements Client {
         request.setBlockID(blockID);
         request.setRequestID(requestID);
         request.setClientAddress(mClientAddress);
+        if (tag == null) {
+            tag = new Tag();
+        }
+        request.setTag(tag);
+
 
         // Set additional data depending on message type
         if (type == MessageTypes.CLIENT_READ_REQUEST) {
@@ -531,34 +543,33 @@ public class TaoClient implements Client {
 
 
     @Override
-    public Future<byte[]> readAsync(long blockID, int unitID) {
-        Callable<byte[]> readTask = () -> {
+    public Future<ProxyResponse> readAsync(long blockID, int unitID) {
+        Callable<ProxyResponse> readTask = () -> {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null, null);
 
             // Send read request
             ProxyResponse response = sendRequestWait(request, unitID);
-            System.out.println(response.getReturnTag());
-            return response.getReturnData();
+            return response;
         };
 
-        Future<byte[]> future = mExecutor.submit(readTask);
+        Future<ProxyResponse> future = mExecutor.submit(readTask);
 
         return future;
     }
 
     @Override
-    public Future<Boolean> writeAsync(long blockID, byte[] data, int unitID) {
-        Callable<Boolean> readTask = () -> {
+    public Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID) {
+        Callable<ProxyResponse> readTask = () -> {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, tag, null);
 
             // Send write request
             ProxyResponse response = sendRequestWait(request, unitID);
-            return response.getWriteStatus();
+            return response;
         };
 
-        Future<Boolean> future = mExecutor.submit(readTask);
+        Future<ProxyResponse> future = mExecutor.submit(readTask);
 
         return future;
     }
@@ -619,7 +630,7 @@ public class TaoClient implements Client {
      * @param client
      */
     public static void loadTestAsync(Client client) throws InterruptedException {
-        // Random number generator
+        /*// Random number generator
         SecureRandom r = new SecureRandom();
 
         // Do a write for numDataItems blocks
@@ -698,11 +709,11 @@ public class TaoClient implements Client {
 
         // TODO: Fix this average
         //TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");
+        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");*/
     }
 
     public static void loadTest(Client client) throws InterruptedException {
-        // Random number generator
+        /*// Random number generator
         SecureRandom r = new SecureRandom();
 
         // Do a write for numDataItems blocks
@@ -783,7 +794,7 @@ public class TaoClient implements Client {
         float average = total / ((float) sResponseTimes.size());
 
         TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");
+        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");*/
     }
 
     public static void main(String[] args) {

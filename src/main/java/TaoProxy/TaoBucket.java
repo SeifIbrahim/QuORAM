@@ -187,7 +187,7 @@ public class TaoBucket implements Bucket {
     }
 
     @Override
-    public byte[] getDataFromBlock(long blockID) {
+    public Block getDataFromBlock(long blockID) {
         // Get read lock
         mRWL.readLock().lock();
 
@@ -195,7 +195,7 @@ public class TaoBucket implements Bucket {
             for (int i = 0; i < mBlocks.length; i++) {
                 // Check to see if the block is filled, and then check to see if the blockID matches the target blockID
                 if (checkBlockFilled(i) && mBlocks[i].getBlockID() == blockID) {
-                    return mBlocks[i].getData();
+                    return mBlocks[i];
                 }
             }
         } finally {
@@ -234,7 +234,7 @@ public class TaoBucket implements Bucket {
     }
 
     @Override
-    public boolean modifyBlock(long blockID, byte[] data) {
+    public boolean modifyBlock(long blockID, byte[] data, Tag tag) {
         // Whether or not the modifying succeeded
         boolean writeStatus = false;
         try {
@@ -246,6 +246,8 @@ public class TaoBucket implements Bucket {
                 if (checkBlockFilled(i) && mBlocks[i].getBlockID() == blockID) {
                     // Modify data for the block
                     mBlocks[i].setData(data);
+                    mBlocks[i].setTag(tag);
+                    System.out.println("Block's tag is now "+mBlocks[i].getTag());
                     writeStatus = true;
                 }
             }

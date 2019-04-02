@@ -19,7 +19,7 @@ public interface Bucket {
      * @param blockID
      * @param data
      */
-    boolean modifyBlock(long blockID, byte[] data);
+    boolean modifyBlock(long blockID, byte[] data, Tag tag);
 
     /**
      * @brief Method that will attempt to get the data from the block with the specified blockID, if such a block exists
@@ -27,7 +27,7 @@ public interface Bucket {
      * @param blockID
      * @return the data within the block with block ID == blockID, or null if no such block exists in bucket
      */
-    byte[] getDataFromBlock(long blockID);
+    Block getDataFromBlock(long blockID);
 
     /**
      * @brief Accessor method to get all the blocks in this bucket

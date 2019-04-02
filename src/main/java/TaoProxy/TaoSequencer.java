@@ -99,11 +99,12 @@ public class TaoSequencer implements Sequencer {
     }
 
     @Override
-    public void onReceiveResponse(ClientRequest req, ServerResponse resp, byte[] data) {
+    public void onReceiveResponse(ClientRequest req, ServerResponse resp, byte[] data, Tag tag) {
         try {
             // Create a new block and set the data
             Block b = mBlockCreator.createBlock();
             b.setData(data);
+            b.setTag(tag);
 
             // Replace empty null block with new block and notify serializationProcedure
             synchronized (mRequestMap) {
@@ -144,11 +145,13 @@ public class TaoSequencer implements Sequencer {
                     response.setClientRequestID(req.getRequestID());
                     response.setReturnData(mRequestMap.get(req).getData());
                     response.setReturnTag(mRequestMap.get(req).getTag());
+                    System.out.println("Going to return tag "+mRequestMap.get(req).getTag());
                 } else if (req.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
                     response = mMessageCreator.createProxyResponse();
                     response.setClientRequestID(req.getRequestID());
                     response.setWriteStatus(true);
                     response.setReturnTag(mRequestMap.get(req).getTag());
+                    System.out.println("Going to return tag "+mRequestMap.get(req).getTag());
                 }
 
                 // Get channel
