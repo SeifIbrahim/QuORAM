@@ -251,16 +251,46 @@ public class TaoClient implements Client {
         ByteBuffer typeByteBuffer = MessageUtility.createTypeReceiveBuffer();
 
         AsynchronousSocketChannel channel = mChannels.get(unitID);
-
+        System.out.println("Attempting to process reply from unit "+unitID);
         // Asynchronously read message
         channel.read(typeByteBuffer, null, new CompletionHandler<Integer, Void>() {
             @Override
             public void completed(Integer result, Void attachment) {
+                System.out.println("Flipping buffer");
                 // Flip the byte buffer for reading
                 typeByteBuffer.flip();
 
                 // Figure out the type of the message
-                int[] typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
+                int[] typeAndLength;
+                try {
+                    typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
+                } catch (BufferUnderflowException e) {
+                    System.out.println("Unit "+unitID+" is down");
+                    try {
+                        Thread.sleep(10000);
+                    } catch (InterruptedException interruptError) {
+                    }
+                    AsynchronousSocketChannel newChannel;
+
+                    boolean connected = false;
+                    while (!connected) {
+                        try {
+                            channel.close();
+                            System.out.println("Trying to reconnect to unit "+unitID);
+                            newChannel = AsynchronousSocketChannel.open(mThreadGroup);
+                            Future connection = newChannel.connect(mProxyAddresses.get(unitID));
+                            connection.get();
+                            System.out.println("Successfully reconnected");
+                            mChannels.put(unitID, newChannel);
+                            processProxyReplies(unitID);
+                            return;
+                        } catch (Exception connError) {
+                            connError.printStackTrace();
+                        }
+                    }
+                    //TODO: restore connection and recurse
+                    return;
+                }
                 int messageType = typeAndLength[0];
                 int messageLength = typeAndLength[1];
 
@@ -325,14 +355,12 @@ public class TaoClient implements Client {
 
                         @Override
                         public void failed(Throwable exc, Void attachment) {
-                            // TODO: implement?
                         }
                     });
                 }
             }
             @Override
             public void failed(Throwable exc, Void attachment) {
-                // TODO: implement?
             }
         });
 
@@ -349,14 +377,14 @@ public class TaoClient implements Client {
         // Wait for a read quorum (here a simple majority) of responses
         byte[] writebackVal = null;
         Tag tag = null;
-        while(readResponsesWaiting.size() >= (TaoConfigs.ORAM_UNITS.size()/2 + .5)) {
+        while(readResponsesWaiting.size() >= (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
             Iterator it = readResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
                 if (entry.getValue().isDone()) {
                     try {
-                        System.out.println("Got value from proxy "+entry.getKey());
-                        System.out.println("Received tag "+entry.getValue().get().getReturnTag());
+                        System.out.println("\n\nGot value from proxy "+entry.getKey());
+                        System.out.println("Received tag "+entry.getValue().get().getReturnTag()+"\n\n");
                         byte[] val = entry.getValue().get().getReturnData();
                         Tag responseTag = entry.getValue().get().getReturnTag();
                         
@@ -393,7 +421,7 @@ public class TaoClient implements Client {
         }
 
         // Wait for a write quorum of acks (here a simple majority)
-        while(readResponsesWaiting.size() >= (TaoConfigs.ORAM_UNITS.size()/2 + .5)) {
+        while(writeResponsesWaiting.size() >= (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
             Iterator it = writeResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
