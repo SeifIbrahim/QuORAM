@@ -3,6 +3,7 @@ package Messages;
 import TaoProxy.Tag;
 
 import java.net.InetSocketAddress;
+import java.nio.channels.AsynchronousSocketChannel;
 
 /**
  * @brief Interface the represents a request from the client to the proxy
@@ -53,6 +54,10 @@ public interface ClientRequest {
     Tag getTag();
 
     void setTag(Tag tag);
+
+    AsynchronousSocketChannel getChannel();
+
+    void setChannel(AsynchronousSocketChannel channel);
 
     /**
      * @brief Get this request's unique ID

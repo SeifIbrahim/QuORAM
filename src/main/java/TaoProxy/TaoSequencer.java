@@ -80,19 +80,6 @@ public class TaoSequencer implements Sequencer {
 
             // Add this request to the request queue
             mRequestQueue.add(req);
-
-            // If we do not have an existing channel for this client, we create a new one
-            if (mChannelMap.get(req.getClientAddress()) == null || req.getRequestID() == 0) {
-                // Create channel
-                AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
-
-                // Make and wait for connection
-                Future connection = channel.connect(req.getClientAddress());
-                connection.get();
-
-                // Put channel into map
-                mChannelMap.put(req.getClientAddress(), channel);
-            }
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -155,7 +142,7 @@ public class TaoSequencer implements Sequencer {
                 }
 
                 // Get channel
-                AsynchronousSocketChannel clientChannel = mChannelMap.get(req.getClientAddress());
+                AsynchronousSocketChannel clientChannel = req.getChannel();
 
                 // Create a response to send to client
                 byte[] serializedResponse = response.serialize();

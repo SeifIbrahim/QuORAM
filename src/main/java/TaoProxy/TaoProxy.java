@@ -363,6 +363,7 @@ public class TaoProxy implements Proxy {
                                 // Create ClientRequest object based on read bytes
                                 ClientRequest clientReq = mMessageCreator.createClientRequest();
                                 clientReq.initFromSerialized(requestBytes);
+                                clientReq.setChannel(channel);
 
                                 TaoLogger.logDebug("Proxy will handle client request #" + clientReq.getRequestID());
 

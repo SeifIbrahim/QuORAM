@@ -15,6 +15,7 @@ import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
+import java.nio.BufferUnderflowException;
 import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
@@ -44,7 +45,7 @@ public class TaoClient implements Client {
     protected Map<Long, ProxyResponse> mResponseWaitMap;
 
     // Channel to proxy
-    protected List<AsynchronousSocketChannel> mChannels;
+    protected Map<Integer, AsynchronousSocketChannel> mChannels;
 
     // ExecutorService for async reads/writes
     protected ExecutorService mExecutor;
@@ -100,7 +101,7 @@ public class TaoClient implements Client {
             mThreadGroup = AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
 
             boolean connected = false;
-            mChannels = new ArrayList();
+            mChannels = new HashMap();
             while (!connected) {
                 try {
                     // Create and connect channels to proxies
@@ -108,7 +109,7 @@ public class TaoClient implements Client {
                         AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
                         Future connection = channel.connect(mProxyAddresses.get(i));
                         connection.get();
-                        mChannels.add(channel);
+                        mChannels.put(i, channel);
                     }
                     connected = true;
                 } catch (Exception e) {
@@ -128,12 +129,8 @@ public class TaoClient implements Client {
             // Request ID counter
             mRequestID = new AtomicLong();
 
-            // Create listener for proxy responses, wait until it is finished initializing
-            Object listenerWait = new Object();
-            synchronized (listenerWait) {
-                listenForResponse(listenerWait);
-                listenerWait.wait();
-            }
+            Runnable serializeProcedure = () -> processAllProxyReplies();
+            new Thread(serializeProcedure).start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -168,7 +165,7 @@ public class TaoClient implements Client {
             mThreadGroup = AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
 
             boolean connected = false;
-            mChannels = new ArrayList();
+            mChannels = new HashMap();
             while (!connected) {
                 try {
                     // Create and connect channels to proxies
@@ -176,7 +173,7 @@ public class TaoClient implements Client {
                         AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
                         Future connection = channel.connect(mProxyAddresses.get(i));
                         connection.get();
-                        mChannels.add(channel);
+                        mChannels.put(i, channel);
                     }
                     connected = true;
                 } catch (Exception e) {
@@ -197,12 +194,8 @@ public class TaoClient implements Client {
             // Request ID counter
             mRequestID = new AtomicLong();
 
-            // Create listener for proxy responses, wait until it is finished initializing
-            Object listenerWait = new Object();
-            synchronized (listenerWait) {
-                listenForResponse(listenerWait);
-                listenerWait.wait();
-            }
+            Runnable serializeProcedure = () -> processAllProxyReplies();
+            new Thread(serializeProcedure).start();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -243,6 +236,107 @@ public class TaoClient implements Client {
         return false;
     }
 
+
+    private void processAllProxyReplies() {
+        Iterator it = mChannels.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, AsynchronousSocketChannel> entry = (Map.Entry)it.next();
+            System.out.println("Setting up thread for process "+entry.getKey());
+            Runnable serializeProcedure = () -> processProxyReplies(entry.getKey());
+            new Thread(serializeProcedure).start();
+        }
+    }
+
+    private void processProxyReplies(int unitID) {
+        ByteBuffer typeByteBuffer = MessageUtility.createTypeReceiveBuffer();
+
+        AsynchronousSocketChannel channel = mChannels.get(unitID);
+
+        // Asynchronously read message
+        channel.read(typeByteBuffer, null, new CompletionHandler<Integer, Void>() {
+            @Override
+            public void completed(Integer result, Void attachment) {
+                // Flip the byte buffer for reading
+                typeByteBuffer.flip();
+
+                // Figure out the type of the message
+                int[] typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
+                int messageType = typeAndLength[0];
+                int messageLength = typeAndLength[1];
+
+                // Serve message based on type
+                if (messageType == MessageTypes.PROXY_RESPONSE) {
+                    // Get the rest of the message
+                    ByteBuffer messageByteBuffer = ByteBuffer.allocate(messageLength);
+
+                    // Do one last asynchronous read to get the rest of the message
+                    channel.read(messageByteBuffer, null, new CompletionHandler<Integer, Void>() {
+                        @Override
+                        public void completed(Integer result, Void attachment) {
+                            // Make sure we read all the bytes
+                            while (messageByteBuffer.remaining() > 0) {
+                                channel.read(messageByteBuffer, null, this);
+                                return;
+                            }
+                            // Flip the byte buffer for reading
+                            messageByteBuffer.flip();
+
+                            // Get the rest of the bytes for the message
+                            byte[] requestBytes = new byte[messageLength];
+                            messageByteBuffer.get(requestBytes);
+
+                            // Initialize ProxyResponse object based on read bytes
+                            ProxyResponse proxyResponse = mMessageCreator.createProxyResponse();
+                            proxyResponse.initFromSerialized(requestBytes);
+
+                            // Get the ProxyResponse from map and initialize it
+                            ProxyResponse clientAnswer = mResponseWaitMap.get(proxyResponse.getClientRequestID());
+                            clientAnswer.initFromSerialized(requestBytes);
+
+                            // Notify thread waiting for this response id
+                            synchronized (clientAnswer) {
+                                clientAnswer.notifyAll();
+                                TaoLogger.logInfo("Got response to request #" + clientAnswer.getClientRequestID());
+                                mResponseWaitMap.remove(clientAnswer.getClientRequestID());
+
+                                if (ASYNC_LOAD) {
+
+                                    // If this is an async load, we need to notify the test that we are done
+                                    if (clientAnswer.getClientRequestID() == (NUM_DATA_ITEMS + LOAD_SIZE - 1)) {
+                                        synchronized (sAsycLoadLock) {
+                                            sAsycLoadLock.notifyAll();
+                                        }
+                                    }
+
+                                    // Check for correctness
+                                    if (sReturnMap.get(clientAnswer.getClientRequestID()) != null) {
+                                        if (!Arrays.equals(sListOfBytes.get(sReturnMap.get(clientAnswer.getClientRequestID())), clientAnswer.getReturnData())) {
+                                            TaoLogger.logError("Read failed for block " + sReturnMap.get(clientAnswer.getClientRequestID()));
+                                            System.exit(1);
+                                        }
+                                    }
+                                } else {
+                                    TaoLogger.logForce("Not an async load");
+                                }
+
+                                processProxyReplies(unitID);
+                            }
+                        }
+
+                        @Override
+                        public void failed(Throwable exc, Void attachment) {
+                            // TODO: implement?
+                        }
+                    });
+                }
+            }
+            @Override
+            public void failed(Throwable exc, Void attachment) {
+                // TODO: implement?
+            }
+        });
+
+    }
 
     public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
         // Broadcast read(blockID) to all ORAM units
@@ -406,145 +500,6 @@ public class TaoClient implements Client {
             e.printStackTrace();
         }
     }
-
-    /**
-     * @brief Private helper method that will wait for proxy responses
-     */
-    private void listenForResponse(Object listenerWait) {
-        // Create runnable to listen for a ProxyResponse
-        Runnable r = () -> {
-            try {
-                // Create an asynchronous channel to listen for connections
-                AsynchronousServerSocketChannel channel =
-                        AsynchronousServerSocketChannel.open(mThreadGroup).bind(new InetSocketAddress(mClientAddress.getPort()));
-
-                // Asynchronously wait for incoming connections
-                channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
-                    @Override
-                    public void completed(AsynchronousSocketChannel proxyChannel, Void att) {
-                        // Start listening for other connections
-                        channel.accept(null, this);
-
-                        // Start up a new thread to serve this connection
-                        Runnable serializeProcedure = () -> serveProxy(proxyChannel);
-                        new Thread(serializeProcedure).start();
-                    }
-
-                    @Override
-                    public void failed(Throwable exc, Void att) {
-                        // TODO: implement?
-                    }
-                });
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
-
-            synchronized (listenerWait) {
-                listenerWait.notify();
-            }
-        };
-
-        // Start runnable on new thread
-        new Thread(r).start();
-    }
-
-    /**
-     * @brief Method to serve a proxy connection
-     * @param channel
-     */
-    private void serveProxy(AsynchronousSocketChannel channel) {
-        try {
-            // Create a ByteBuffer to read in message type
-            ByteBuffer typeByteBuffer = MessageUtility.createTypeReceiveBuffer();
-
-            // Asynchronously read message
-            channel.read(typeByteBuffer, null, new CompletionHandler<Integer, Void>() {
-                @Override
-                public void completed(Integer result, Void attachment) {
-                    // Flip the byte buffer for reading
-                    typeByteBuffer.flip();
-
-                    // Figure out the type of the message
-                    int[] typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
-                    int messageType = typeAndLength[0];
-                    int messageLength = typeAndLength[1];
-
-                    // Serve message based on type
-                    if (messageType == MessageTypes.PROXY_RESPONSE) {
-                        // Get the rest of the message
-                        ByteBuffer messageByteBuffer = ByteBuffer.allocate(messageLength);
-
-                        // Do one last asynchronous read to get the rest of the message
-                        channel.read(messageByteBuffer, null, new CompletionHandler<Integer, Void>() {
-                            @Override
-                            public void completed(Integer result, Void attachment) {
-                                // Make sure we read all the bytes
-                                while (messageByteBuffer.remaining() > 0) {
-                                    channel.read(messageByteBuffer, null, this);
-                                    return;
-                                }
-                                // Flip the byte buffer for reading
-                                messageByteBuffer.flip();
-
-                                // Get the rest of the bytes for the message
-                                byte[] requestBytes = new byte[messageLength];
-                                messageByteBuffer.get(requestBytes);
-
-                                // Initialize ProxyResponse object based on read bytes
-                                ProxyResponse proxyResponse = mMessageCreator.createProxyResponse();
-                                proxyResponse.initFromSerialized(requestBytes);
-
-                                // Get the ProxyResponse from map and initialize it
-                                ProxyResponse clientAnswer = mResponseWaitMap.get(proxyResponse.getClientRequestID());
-                                clientAnswer.initFromSerialized(requestBytes);
-
-                                // Notify thread waiting for this response id
-                                synchronized (clientAnswer) {
-                                    clientAnswer.notifyAll();
-                                    TaoLogger.logInfo("Got response to request #" + clientAnswer.getClientRequestID());
-                                    mResponseWaitMap.remove(clientAnswer.getClientRequestID());
-
-                                    if (ASYNC_LOAD) {
-
-                                        // If this is an async load, we need to notify the test that we are done
-                                        if (clientAnswer.getClientRequestID() == (NUM_DATA_ITEMS + LOAD_SIZE - 1)) {
-                                            synchronized (sAsycLoadLock) {
-                                                sAsycLoadLock.notifyAll();
-                                            }
-                                        }
-
-                                        // Check for correctness
-                                        if (sReturnMap.get(clientAnswer.getClientRequestID()) != null) {
-                                            if (!Arrays.equals(sListOfBytes.get(sReturnMap.get(clientAnswer.getClientRequestID())), clientAnswer.getReturnData())) {
-                                                TaoLogger.logError("Read failed for block " + sReturnMap.get(clientAnswer.getClientRequestID()));
-                                                System.exit(1);
-                                            }
-                                        }
-                                    } else {
-                                        TaoLogger.logForce("Not an async load");
-                                    }
-
-                                    serveProxy(channel);
-                                }
-                            }
-
-                            @Override
-                            public void failed(Throwable exc, Void attachment) {
-                                // TODO: implement?
-                            }
-                        });
-                    }
-                }
-                @Override
-                public void failed(Throwable exc, Void attachment) {
-                    // TODO: implement?
-                }
-            });
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
 
     @Override
     public Future<ProxyResponse> readAsync(long blockID, int unitID) {
