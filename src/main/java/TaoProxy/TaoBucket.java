@@ -279,6 +279,7 @@ public class TaoBucket implements Bucket {
         // Add all the blocks to the return data
         int entireBlockSize = TaoConfigs.TOTAL_BLOCK_SIZE;
         for(int i = 0; i < TaoConfigs.BLOCKS_IN_BUCKET; i++) {
+            System.out.println("Block "+mBlocks[i].getBlockID()+" has tag "+mBlocks[i].getTag());
             System.arraycopy(mBlocks[i].serialize(), 0, returnData, metaDataSize + entireBlockSize * i, entireBlockSize);
         }
 

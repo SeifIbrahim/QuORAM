@@ -43,6 +43,7 @@ public class TaoBlock implements Block {
     public void initFromBlock(Block b) {
         mID = b.getBlockID();
         mData = b.getData();
+        mTag = b.getTag();
     }
 
     @Override

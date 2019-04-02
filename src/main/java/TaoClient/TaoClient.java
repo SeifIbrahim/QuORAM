@@ -264,8 +264,14 @@ public class TaoClient implements Client {
                         System.out.println("Got value from proxy "+entry.getKey());
                         System.out.println("Received tag "+entry.getValue().get().getReturnTag());
                         byte[] val = entry.getValue().get().getReturnData();
-                        writebackVal = val;
-                        tag = entry.getValue().get().getReturnTag();
+                        Tag responseTag = entry.getValue().get().getReturnTag();
+                        
+                        // Set writeback value to the value with the greatest tag
+                        if (tag == null || responseTag.compareTo(tag) >= 0) {
+                            writebackVal = val;
+                            tag = responseTag;
+                        }
+                        
                         it.remove();
                     } catch (Exception e) {
                         System.out.println(e);
@@ -274,8 +280,6 @@ public class TaoClient implements Client {
                 }
             }
         }
-
-        // Set writeback value to the value with the greatest tag
 
         // If write, set writeback value to client's value
         // and increment tag

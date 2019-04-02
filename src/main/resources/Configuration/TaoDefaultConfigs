@@ -44,6 +44,6 @@ min_server_size=10
 num_storage_servers=1
 
 # The amout of ORAM units
-num_oram_units=1
+num_oram_units=2
 
 
