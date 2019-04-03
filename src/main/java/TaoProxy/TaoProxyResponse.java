@@ -71,7 +71,6 @@ public class TaoProxyResponse implements ProxyResponse {
 
     @Override
     public Tag getReturnTag() {
-        System.out.println("going to ");
         Tag tag = new Tag();
         tag.initFromSerialized(mReturnTag);
         return tag;

@@ -251,12 +251,10 @@ public class TaoClient implements Client {
         ByteBuffer typeByteBuffer = MessageUtility.createTypeReceiveBuffer();
 
         AsynchronousSocketChannel channel = mChannels.get(unitID);
-        System.out.println("Attempting to process reply from unit "+unitID);
         // Asynchronously read message
         channel.read(typeByteBuffer, null, new CompletionHandler<Integer, Void>() {
             @Override
             public void completed(Integer result, Void attachment) {
-                System.out.println("Flipping buffer");
                 // Flip the byte buffer for reading
                 typeByteBuffer.flip();
 
@@ -272,20 +270,19 @@ public class TaoClient implements Client {
                     }
                     AsynchronousSocketChannel newChannel;
 
+                    System.out.println("Trying to reconnect to unit "+unitID);
                     boolean connected = false;
                     while (!connected) {
                         try {
                             channel.close();
-                            System.out.println("Trying to reconnect to unit "+unitID);
                             newChannel = AsynchronousSocketChannel.open(mThreadGroup);
                             Future connection = newChannel.connect(mProxyAddresses.get(unitID));
                             connection.get();
-                            System.out.println("Successfully reconnected");
+                            System.out.println("Successfully reconnected to unit "+unitID);
                             mChannels.put(unitID, newChannel);
                             processProxyReplies(unitID);
                             return;
                         } catch (Exception connError) {
-                            connError.printStackTrace();
                         }
                     }
                     //TODO: restore connection and recurse
@@ -326,7 +323,6 @@ public class TaoClient implements Client {
                             // Notify thread waiting for this response id
                             synchronized (clientAnswer) {
                                 clientAnswer.notifyAll();
-                                TaoLogger.logInfo("Got response to request #" + clientAnswer.getClientRequestID());
                                 mResponseWaitMap.remove(clientAnswer.getClientRequestID());
 
                                 if (ASYNC_LOAD) {
@@ -346,7 +342,6 @@ public class TaoClient implements Client {
                                         }
                                     }
                                 } else {
-                                    TaoLogger.logForce("Not an async load");
                                 }
 
                                 processProxyReplies(unitID);
@@ -367,6 +362,8 @@ public class TaoClient implements Client {
     }
 
     public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
+        System.out.println("\n\n");
+
         // Broadcast read(blockID) to all ORAM units
         Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
@@ -383,8 +380,7 @@ public class TaoClient implements Client {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
                 if (entry.getValue().isDone()) {
                     try {
-                        System.out.println("\n\nGot value from proxy "+entry.getKey());
-                        System.out.println("Received tag "+entry.getValue().get().getReturnTag()+"\n\n");
+                        System.out.println("From proxy "+entry.getKey() +": got value "+entry.getValue().get().getReturnData()[0]+" with tag "+entry.getValue().get().getReturnTag());
                         byte[] val = entry.getValue().get().getReturnData();
                         Tag responseTag = entry.getValue().get().getReturnTag();
                         
@@ -408,9 +404,8 @@ public class TaoClient implements Client {
         if (isWrite) {
             writebackVal = data;
             tag.seqNum = tag.seqNum + 1;
+            //TODO: set tag's unit ID (which should actually be client ID)
         }
-
-        System.out.println("New tag: "+tag);
 
         // Broadcast write(blockID, writeback value, writeback tag)
         // to all ORAM units
@@ -435,6 +430,8 @@ public class TaoClient implements Client {
                 }
             }
         }
+
+        System.out.println("\n\n");
 
         return writebackVal;
     }

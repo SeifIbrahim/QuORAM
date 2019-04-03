@@ -632,7 +632,6 @@ public class TaoProcessor implements Processor {
                 // Check if the request was a write
                 if (currentRequest.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
                     TaoLogger.logDebug("Write request BlockID " + req.getBlockID());
-                    System.out.println("\n\nTAG IS "+currentRequest.getTag()+"\n\n");
                     if (elementDoesExist) {
                         // The element should exist somewhere
                         writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData(), currentRequest.getTag());
@@ -764,7 +763,6 @@ public class TaoProcessor implements Processor {
     public void writeDataToBlock(long blockID, byte[] data, Tag tag) {
         TaoLogger.logDebug("Trying to write data for blockID " + blockID);
         TaoLogger.logDebug("I think this is at path: " + mPositionMap.getBlockPosition(blockID));
-        System.out.println("WRITING TAG "+tag);
 
         // Due to multiple threads moving blocks around, we need to run this in a loop
         while (true) {
@@ -783,7 +781,6 @@ public class TaoProcessor implements Processor {
                 if (targetBlock != null) {
                     targetBlock.setData(data);
                     targetBlock.setTag(tag);
-                    System.out.println("Block's tag is now "+targetBlock.getTag());
                     return;
                 }
             }

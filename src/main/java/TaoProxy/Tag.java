@@ -28,7 +28,6 @@ public class Tag implements Comparable<Tag>{
         byte[] seqNumBytes = Longs.toByteArray(seqNum);
         byte[] unitIDBytes = Shorts.toByteArray(unitID);
         byte[] serialized = Bytes.concat(seqNumBytes, unitIDBytes);
-        System.out.println("serialized tag has length "+ serialized.length);
         return serialized;
     };
 
