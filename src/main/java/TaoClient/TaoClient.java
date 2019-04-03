@@ -520,7 +520,12 @@ public class TaoClient implements Client {
                 TaoLogger.logDebug("Sending request #" + request.getRequestID());
                 while (requestMessage.remaining() > 0) {
                     Future<Integer> writeResult = mChannels.get(unitID).write(requestMessage);
-                    writeResult.get();
+                    try {
+                        writeResult.get();
+                    } catch (Exception e) {
+                        System.out.println("Unable to contact unit "+unitID);
+                        return;
+                    }
                 }
             }
         } catch (Exception e) {
