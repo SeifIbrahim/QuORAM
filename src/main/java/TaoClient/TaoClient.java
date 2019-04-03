@@ -73,6 +73,8 @@ public class TaoClient implements Client {
     // Whether or not a load test is for an async load or not
     public static boolean ASYNC_LOAD = false;
 
+    public short mClientID;
+
     /**
      * @brief Default constructor
      */
@@ -404,7 +406,7 @@ public class TaoClient implements Client {
         if (isWrite) {
             writebackVal = data;
             tag.seqNum = tag.seqNum + 1;
-            //TODO: set tag's unit ID (which should actually be client ID)
+            tag.clientID = mClientID;
         }
 
         // Broadcast write(blockID, writeback value, writeback tag)
@@ -792,6 +794,8 @@ public class TaoClient implements Client {
 
             // Create client
             TaoClient client = new TaoClient();
+            String clientID = options.get("id");
+            client.mClientID = Short.parseShort(clientID);
 
             // Determine if we are load testing or just making an interactive client
             String runType = options.getOrDefault("runType", "interactive");
