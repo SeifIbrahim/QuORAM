@@ -244,9 +244,12 @@ public class TaoBucket implements Bucket {
             // Search for the correct block
             for (int i = 0; i < TaoConfigs.BLOCKS_IN_BUCKET; i++) {
                 if (checkBlockFilled(i) && mBlocks[i].getBlockID() == blockID) {
-                    // Modify data for the block
-                    mBlocks[i].setData(data);
-                    mBlocks[i].setTag(tag);
+                    // Modify data for the block if the new tag is greater
+                    // than or equal to the current tag
+                    if (tag.compareTo(mBlocks[i].getTag()) >= 0) {
+                        mBlocks[i].setData(data);
+                        mBlocks[i].setTag(tag);
+                    }
                     writeStatus = true;
                 }
             }

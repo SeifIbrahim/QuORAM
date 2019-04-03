@@ -628,7 +628,6 @@ public class TaoProcessor implements Processor {
                     foundTag = new Tag();
                 }
 
-                //TODO: only overwrite existing data if new tag is >= old
                 // Check if the request was a write
                 if (currentRequest.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
                     TaoLogger.logDebug("Write request BlockID " + req.getBlockID());
@@ -779,8 +778,10 @@ public class TaoProcessor implements Processor {
 
                 // If the block was found in the stash, we set the data for the block
                 if (targetBlock != null) {
-                    targetBlock.setData(data);
-                    targetBlock.setTag(tag);
+                    if (tag.compareTo(targetBlock.getTag()) >= 0) {
+                        targetBlock.setData(data);
+                        targetBlock.setTag(tag);
+                    }
                     return;
                 }
             }
