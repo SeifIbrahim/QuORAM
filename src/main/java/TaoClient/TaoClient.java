@@ -818,7 +818,6 @@ public class TaoClient implements Client {
                         Arrays.fill(dataToWrite, (byte) fill);
 
                         TaoLogger.logForce("Going to send write request for " + blockID);
-                        //TODO: change to use logical write
                         byte[] writeStatus = client.logicalOperation(blockID, dataToWrite, true);
 
                         if (writeStatus == null) {
@@ -831,7 +830,6 @@ public class TaoClient implements Client {
                         long blockID = reader.nextLong();
 
                         TaoLogger.logForce("Going to send read request for " + blockID);
-                        //TODO: change to use logical write
                         byte[] result = client.logicalOperation(blockID, null, false);
 
                         if (result != null) {

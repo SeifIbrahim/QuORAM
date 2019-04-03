@@ -13,6 +13,7 @@ import java.io.InputStream;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.nio.BufferUnderflowException;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -334,7 +335,13 @@ public class TaoProxy implements Proxy {
                     TaoLogger.logDebug("Proxy received a client request");
 
                     // Figure out the type of the message
-                    int[] typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
+                    int[] typeAndLength;
+                    try {
+                        typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
+                    } catch (BufferUnderflowException e) {
+                        System.out.println("Lost connection to client");
+                        return;
+                    }
                     int messageType = typeAndLength[0];
                     int messageLength = typeAndLength[1];
 
