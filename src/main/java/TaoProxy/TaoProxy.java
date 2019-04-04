@@ -269,7 +269,7 @@ public class TaoProxy implements Proxy {
         // mSequencer.onReceiveRequest(req);
 
         // We send the request to the processor, starting with the read path method
-        TaoLogger.logInfo("Got a client request for "+req.getBlockID());
+        TaoLogger.logInfo("\n\n\nGot a client request for "+req.getBlockID());
         mProcessor.readPath(req);
     }
 

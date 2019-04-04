@@ -39,6 +39,8 @@ public interface Client {
      */
     Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID);
 
+    byte[] logicalOperation(long blockID, byte[] data, boolean isWrite);
+
     /**
      * @brief Ask proxy to print it's subtree. Used for debugging
      */

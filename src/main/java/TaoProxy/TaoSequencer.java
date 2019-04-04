@@ -128,11 +128,13 @@ public class TaoSequencer implements Sequencer {
                 // Create a ProxyResponse based on type of request
                 ProxyResponse response = null;
                 if (req.getType() == MessageTypes.CLIENT_READ_REQUEST) {
+                    System.out.println("Answering read request");
                     response = mMessageCreator.createProxyResponse();
                     response.setClientRequestID(req.getRequestID());
                     response.setReturnData(mRequestMap.get(req).getData());
                     response.setReturnTag(mRequestMap.get(req).getTag());
                 } else if (req.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
+                    System.out.println("Answering write request");
                     response = mMessageCreator.createProxyResponse();
                     response.setClientRequestID(req.getRequestID());
                     response.setWriteStatus(true);
@@ -153,6 +155,7 @@ public class TaoSequencer implements Sequencer {
                     while (fullMessage.remaining() > 0) {
                         Future<Integer> writeResult = clientChannel.write(fullMessage);
                         writeResult.get();
+                        System.out.println("Replied to client");
                     }
 
                     // Clear buffer

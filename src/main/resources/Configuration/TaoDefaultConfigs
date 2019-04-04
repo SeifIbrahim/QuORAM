@@ -7,7 +7,7 @@ oram_file=oram.txt
 proxy_thread_count=10
 
 # The writeback threshold for the proxy
-write_back_threshold=10
+write_back_threshold=8
 
 # Client port
 client_port=12337

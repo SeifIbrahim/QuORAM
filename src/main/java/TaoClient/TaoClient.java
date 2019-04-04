@@ -369,14 +369,15 @@ public class TaoClient implements Client {
         // Broadcast read(blockID) to all ORAM units
         Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-            System.out.println("Sending read to "+i);
             readResponsesWaiting.put(i, readAsync(blockID, i));
         }
 
         // Wait for a read quorum (here a simple majority) of responses
         byte[] writebackVal = null;
         Tag tag = null;
-        while(readResponsesWaiting.size() >= (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+        long timeStart = System.currentTimeMillis();
+        int responseCount = 0;
+        while(responseCount < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
             Iterator it = readResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
@@ -393,12 +394,25 @@ public class TaoClient implements Client {
                         }
                         
                         it.remove();
+                        responseCount++;
                     } catch (Exception e) {
                         System.out.println(e);
                         e.printStackTrace();
                     }
+                } else if (System.currentTimeMillis() > timeStart + 1000) {
+                    entry.getValue().cancel(true);
+                    System.out.println("Timed out waiting for proxy "+entry.getKey());
+                    it.remove();
                 }
             }
+        }
+
+        // Cancel all pending reads, so that threads are not wasted
+        Iterator it = readResponsesWaiting.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
+            entry.getValue().cancel(true);
+            it.remove();
         }
 
         // If write, set writeback value to client's value
@@ -413,24 +427,38 @@ public class TaoClient implements Client {
         // to all ORAM units
         Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-            System.out.println("Sending write to "+i);
             writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i));
         }
 
         // Wait for a write quorum of acks (here a simple majority)
-        while(writeResponsesWaiting.size() >= (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
-            Iterator it = writeResponsesWaiting.entrySet().iterator();
+        timeStart = System.currentTimeMillis();
+        responseCount = 0;
+        while(responseCount < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+            it = writeResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
                 if (entry.getValue().isDone()) {
                     try {
                         System.out.println("Got ack from proxy "+entry.getKey());
                         it.remove();
+                        responseCount++;
                     } catch (Exception e) {
                         System.out.println(e);
                     }
+                } else if (System.currentTimeMillis() > timeStart + 1000) {
+                    entry.getValue().cancel(true);
+                    System.out.println("Timed out waiting for proxy "+entry.getKey());
+                    it.remove();
                 }
             }
+        }
+
+        // Cancel all pending writes, so that threads are not wasted
+        it = writeResponsesWaiting.entrySet().iterator();
+        while (it.hasNext()) {
+            Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
+            entry.getValue().cancel(true);
+            it.remove();
         }
 
         System.out.println("\n\n");
@@ -497,7 +525,6 @@ public class TaoClient implements Client {
             // Return response
             return proxyResponse;
         } catch (Exception e) {
-            e.printStackTrace();
         }
 
         return null;
@@ -616,95 +643,8 @@ public class TaoClient implements Client {
         }
     }
 
-    /**
-     * @brief Method to do a load test on proxy
-     * @param client
-     */
-    public static void loadTestAsync(Client client) throws InterruptedException {
-        /*// Random number generator
-        SecureRandom r = new SecureRandom();
-
-        // Do a write for numDataItems blocks
-        long blockID;
-        sListOfBytes = new ArrayList<>();
-
-        boolean writeStatus;
-        for (int i = 1; i <= NUM_DATA_ITEMS; i++) {
-            TaoLogger.logInfo("Doing a write for block " + i);
-            blockID = i;
-            byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
-            Arrays.fill(dataToWrite, (byte) blockID);
-            sListOfBytes.add(dataToWrite);
-
-            //TODO: change to use logical write
-            writeStatus = client.write(blockID, dataToWrite, 0);
-
-            if (!writeStatus) {
-                TaoLogger.logError("Write failed for block " + i);
-                System.exit(1);
-            } else {
-                TaoLogger.logInfo("Write was successful for " + i);
-            }
-        }
-
-        int readOrWrite;
-        int targetBlock;
-        byte[] z;
-
-        TaoLogger.logForce("Going to start load test");
-        long startTime = System.currentTimeMillis();
-        for (int i = 0; i < LOAD_SIZE; i++) {
-            readOrWrite = r.nextInt(2);
-            targetBlock = r.nextInt(NUM_DATA_ITEMS) + 1;
-
-            if (readOrWrite == 0) {
-                TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get() + " for block " + targetBlock);
-
-                // Send read and keep track of response time
-                long start = System.currentTimeMillis();
-                //TODO: change to use logical write
-                client.readAsync(targetBlock, 0);
-                sResponseTimes.add(System.currentTimeMillis() - start);
-
-
-            } else {
-                TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
-
-                // Send write and keep track of response time
-                long start = System.currentTimeMillis();
-                //TODO: change to use logical write
-                client.writeAsync(targetBlock, sListOfBytes.get(targetBlock - 1), 0);
-                sResponseTimes.add(System.currentTimeMillis() - start);
-            }
-        }
-        TaoLogger.logForce("Going to wait");
-        synchronized (sAsycLoadLock) {
-            sAsycLoadLock.wait();
-        }
-        
-        long endTime = System.currentTimeMillis();
-        TaoLogger.logForce("Ending load test");
-
-        try {
-            Thread.sleep(2000);
-        } catch (InterruptedException e) {}
-
-        client.writeStatistics();
-
-        // Get average response time over 1000 operations
-        long total = 0;
-        for (Long l : sResponseTimes) {
-            total += l;
-        }
-        float average = total / ((float) sResponseTimes.size());
-
-        // TODO: Fix this average
-        //TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");*/
-    }
-
     public static void loadTest(Client client) throws InterruptedException {
-        /*// Random number generator
+        // Random number generator
         SecureRandom r = new SecureRandom();
 
         // Do a write for numDataItems blocks
@@ -720,8 +660,7 @@ public class TaoClient implements Client {
             Arrays.fill(dataToWrite, (byte) blockID);
             listOfBytes.add(dataToWrite);
 
-            //TODO: change to use logical write
-            writeStatus = client.write(blockID, dataToWrite, 0);
+            writeStatus = (client.logicalOperation(blockID, dataToWrite, true) != null);
 
             if (!writeStatus) {
                 TaoLogger.logError("Write failed for block " + i);
@@ -749,7 +688,7 @@ public class TaoClient implements Client {
                 // Send read and keep track of response time
                 long start = System.currentTimeMillis();
                 //TODO: change to use logical write
-                z = client.read(targetBlock, 0);
+                z = client.logicalOperation(targetBlock, null, false);
                 sResponseTimes.add(System.currentTimeMillis() - start);
 
 
@@ -763,7 +702,7 @@ public class TaoClient implements Client {
                 // Send write and keep track of response time
                 //TODO: change to use logical write
                 long start = System.currentTimeMillis();
-                writeStatus = client.write(targetBlock, listOfBytes.get(targetBlock - 1), 0);
+                writeStatus = (client.logicalOperation(targetBlock, listOfBytes.get(targetBlock - 1), true) != null);
                 sResponseTimes.add(System.currentTimeMillis() - start);
 
                 if (!writeStatus) {
@@ -785,7 +724,7 @@ public class TaoClient implements Client {
         float average = total / ((float) sResponseTimes.size());
 
         TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");*/
+        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");
     }
 
     public static void main(String[] args) {
@@ -861,10 +800,6 @@ public class TaoClient implements Client {
 
                 if (load_test_type.equals("synchronous")) {
                     loadTest(client);
-                } else {
-                    TaoLogger.logForce("we are async");
-                    ASYNC_LOAD = true;
-                    loadTestAsync(client);
                 }
 
                 System.exit(1);
