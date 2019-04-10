@@ -50,6 +50,9 @@ public class TaoClient implements Client {
     // ExecutorService for async reads/writes
     protected ExecutorService mExecutor;
 
+    // Next operation ID to use
+    protected OperationID mNextOpID;
+
     /* Below static variables are used for load testing*/
 
     // Used for measuring response time
@@ -207,7 +210,7 @@ public class TaoClient implements Client {
     public byte[] read(long blockID, int unitID) {
         try {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null, null, null);
 
             // Send read request
             ProxyResponse response = sendRequestWait(request, unitID);
@@ -225,7 +228,7 @@ public class TaoClient implements Client {
     public boolean write(long blockID, byte[] data, int unitID) {
         try {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, null, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, null, null, null);
 
             // Send write request
             ProxyResponse response = sendRequestWait(request, unitID);
@@ -366,10 +369,18 @@ public class TaoClient implements Client {
     public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
         System.out.println("\n\n");
 
+        OperationID opID;
+        synchronized (mNextOpID) {
+            opID = mNextOpID;
+            mNextOpID = mNextOpID.getNext();
+        }
+
+        System.out.println("Starting logical operation "+opID);
+
         // Broadcast read(blockID) to all ORAM units
         Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-            readResponsesWaiting.put(i, readAsync(blockID, i));
+            readResponsesWaiting.put(i, readAsync(blockID, i, opID));
         }
 
         // Wait for a read quorum (here a simple majority) of responses
@@ -427,7 +438,7 @@ public class TaoClient implements Client {
         // to all ORAM units
         Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
         for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-            writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i));
+            writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i, opID));
         }
 
         // Wait for a write quorum of acks (here a simple majority)
@@ -474,7 +485,7 @@ public class TaoClient implements Client {
      * @param extras
      * @return a client request
      */
-    protected ClientRequest makeRequest(int type, long blockID, byte[] data, Tag tag, List<Object> extras) {
+    protected ClientRequest makeRequest(int type, long blockID, byte[] data, Tag tag, OperationID opID, List<Object> extras) {
         // Keep track of requestID and increment it
         long requestID = mRequestID.getAndAdd(1);
 
@@ -483,6 +494,7 @@ public class TaoClient implements Client {
         request.setBlockID(blockID);
         request.setRequestID(requestID);
         request.setClientAddress(mClientAddress);
+        request.setOpID(opID);
         if (tag == null) {
             tag = new Tag();
         }
@@ -561,10 +573,10 @@ public class TaoClient implements Client {
     }
 
     @Override
-    public Future<ProxyResponse> readAsync(long blockID, int unitID) {
+    public Future<ProxyResponse> readAsync(long blockID, int unitID, OperationID opID) {
         Callable<ProxyResponse> readTask = () -> {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_READ_REQUEST, blockID, null, null, opID, null);
 
             // Send read request
             ProxyResponse response = sendRequestWait(request, unitID);
@@ -577,10 +589,10 @@ public class TaoClient implements Client {
     }
 
     @Override
-    public Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID) {
+    public Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID, OperationID opID) {
         Callable<ProxyResponse> readTask = () -> {
             // Make request
-            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, tag, null);
+            ClientRequest request = makeRequest(MessageTypes.CLIENT_WRITE_REQUEST, blockID, data, tag, opID, null);
 
             // Send write request
             ProxyResponse response = sendRequestWait(request, unitID);
@@ -740,6 +752,9 @@ public class TaoClient implements Client {
             TaoClient client = new TaoClient();
             String clientID = options.get("id");
             client.mClientID = Short.parseShort(clientID);
+            client.mNextOpID = new OperationID();
+            client.mNextOpID.seqNum = 0;
+            client.mNextOpID.clientID = Short.parseShort(clientID);
 
             // Determine if we are load testing or just making an interactive client
             String runType = options.getOrDefault("runType", "interactive");
