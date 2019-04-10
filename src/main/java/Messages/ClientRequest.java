@@ -1,6 +1,7 @@
 package Messages;
 
 import TaoProxy.Tag;
+import TaoClient.OperationID;
 
 import java.net.InetSocketAddress;
 import java.nio.channels.AsynchronousSocketChannel;
@@ -54,6 +55,10 @@ public interface ClientRequest {
     Tag getTag();
 
     void setTag(Tag tag);
+
+    OperationID getOpID();
+
+    void setOpID(OperationID opID);
 
     AsynchronousSocketChannel getChannel();
 

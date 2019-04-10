@@ -2,6 +2,7 @@ package TaoProxy;
 
 import Configuration.TaoConfigs;
 import Messages.ClientRequest;
+import TaoClient.OperationID;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
@@ -26,6 +27,8 @@ public class TaoClientRequest implements ClientRequest {
     protected byte[] mData;
 
     protected byte[] mTag;
+
+    protected byte[] mOpID;
 
     // ID that will uniquely identify this request
     protected long mRequestID;
@@ -68,6 +71,8 @@ public class TaoClientRequest implements ClientRequest {
         // Cache to avoid having to recreate InetSocketAddress object
         mClientAddress = ClientAddressCache.getFromCache(hostname, Integer.toString(port));
         mTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
+        startIndex += 10;
+        mOpID = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
         startIndex += 10;
     }
 
@@ -116,6 +121,20 @@ public class TaoClientRequest implements ClientRequest {
     }
 
     @Override
+    public OperationID getOpID() {
+        OperationID opID = new OperationID();
+        if (mOpID != null) {
+            opID.initFromSerialized(mOpID);
+        }
+        return opID;
+    }
+
+    @Override
+    public void setOpID(OperationID opID) {
+        mOpID = opID.serialize();
+    }
+
+    @Override
     public AsynchronousSocketChannel getChannel() {
         return mChannel;
     }
@@ -154,7 +173,7 @@ public class TaoClientRequest implements ClientRequest {
         byte[] hostnameBytes = mClientAddress.getHostName().getBytes(StandardCharsets.UTF_8);
         byte[] portBytes = Ints.toByteArray(mClientAddress.getPort());
 
-        return Bytes.concat(blockIDBytes, typeBytes, idBytes, mData, hostnameLengthBytes, hostnameBytes, portBytes, mTag);
+        return Bytes.concat(blockIDBytes, typeBytes, idBytes, mData, hostnameLengthBytes, hostnameBytes, portBytes, mTag, mOpID);
     }
 
     @Override

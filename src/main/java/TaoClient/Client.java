@@ -29,7 +29,7 @@ public interface Client {
      * @param blockID
      * @return a Future that will eventually have the data from block with block id == blockID
      */
-    Future<ProxyResponse> readAsync(long blockID, int unitID);
+    Future<ProxyResponse> readAsync(long blockID, int unitID, OperationID opID);
 
     /**
      * @brief Asynchronously write data to proxy
@@ -37,7 +37,7 @@ public interface Client {
      * @param data
      * @return a Future that will eventually return a boolean revealing if the write was successful
      */
-    Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID);
+    Future<ProxyResponse> writeAsync(long blockID, byte[] data, Tag tag, int unitID, OperationID opID);
 
     byte[] logicalOperation(long blockID, byte[] data, boolean isWrite);
 
