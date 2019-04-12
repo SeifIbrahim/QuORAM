@@ -56,7 +56,7 @@ public class TaoClient implements Client {
     /* Below static variables are used for load testing*/
 
     // Used for measuring response time
-    public static List<Long> sResponseTimes = new ArrayList<>();
+    public static Map<Integer, List<Long>> sResponseTimes = new HashMap<>();
 
     // Used for locking the async load test until all the operations are replied to
     public static Object sAsycLoadLock = new Object();
@@ -655,15 +655,59 @@ public class TaoClient implements Client {
         }
     }
 
+    public static void doLoadTestOperation(Client client, int readOrWrite, int targetBlock, ArrayList<byte[]> listOfBytes, ExecutorService loadTestExecutor, int requestsPerSecond) {
+        Callable<Integer> readTask = () -> {
+            byte[] z;
+            if (readOrWrite == 0) {
+                TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
+
+                // Send read and keep track of response time
+                long start = System.currentTimeMillis();
+                //TODO: change to use logical write
+                z = client.logicalOperation(targetBlock, null, false);
+                sResponseTimes.get(requestsPerSecond).add(System.currentTimeMillis() - start);
+                System.out.println("Read took "+(System.currentTimeMillis() - start));
+
+                if (!Arrays.equals(listOfBytes.get(targetBlock-1), z)) {
+                    TaoLogger.logError("Read failed for block " + targetBlock);
+                    System.exit(1);
+                }
+            } else {
+                TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
+
+                // Send write and keep track of response time
+                //TODO: change to use logical write
+                long start = System.currentTimeMillis();
+                boolean writeStatus = (client.logicalOperation(targetBlock, listOfBytes.get(targetBlock - 1), true) != null);
+                sResponseTimes.get(requestsPerSecond).add(System.currentTimeMillis() - start);
+                System.out.println("Write took "+(System.currentTimeMillis() - start));
+
+                if (!writeStatus) {
+                    TaoLogger.logError("Write failed for block " + targetBlock);
+                    System.exit(1);
+                }
+            }
+
+            return 0;
+        };
+
+        loadTestExecutor.submit(readTask);
+    }
+
     public static void loadTest(Client client) throws InterruptedException {
         // Random number generator
         SecureRandom r = new SecureRandom();
+
+        ExecutorService loadTestExecutor = Executors.newFixedThreadPool(20, Executors.defaultThreadFactory());
 
         // Do a write for numDataItems blocks
         long blockID;
         ArrayList<byte[]> listOfBytes = new ArrayList<>();
 
-        int requestID = 0;
+        for (int i = 1; i < 11; i++) {
+            sResponseTimes.put(i*5, new ArrayList<>());
+        }
+
         boolean writeStatus;
         for (int i = 1; i <= NUM_DATA_ITEMS; i++) {
             TaoLogger.logInfo("Doing a write for block " + i);
@@ -680,63 +724,38 @@ public class TaoClient implements Client {
             } else {
                 TaoLogger.logInfo("Write was successful for " + i);
             }
-
-                requestID++;
         }
-
-        int readOrWrite;
-        int targetBlock;
-        byte[] z;
 
         TaoLogger.logForce("Going to start load test");
         long startTime = System.currentTimeMillis();
+        int requestsPerSecond = 0;
         for (int i = 0; i < LOAD_SIZE; i++) {
-            readOrWrite = r.nextInt(2);
-            targetBlock = r.nextInt(NUM_DATA_ITEMS) + 1;
-
-            if (readOrWrite == 0) {
-                TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
-
-                // Send read and keep track of response time
-                long start = System.currentTimeMillis();
-                //TODO: change to use logical write
-                z = client.logicalOperation(targetBlock, null, false);
-                sResponseTimes.add(System.currentTimeMillis() - start);
-
-
-                if (!Arrays.equals(listOfBytes.get(targetBlock-1), z)) {
-                    TaoLogger.logError("Read failed for block " + targetBlock);
-                    System.exit(1);
-                }
-            } else {
-                TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
-
-                // Send write and keep track of response time
-                //TODO: change to use logical write
-                long start = System.currentTimeMillis();
-                writeStatus = (client.logicalOperation(targetBlock, listOfBytes.get(targetBlock - 1), true) != null);
-                sResponseTimes.add(System.currentTimeMillis() - start);
-
-                if (!writeStatus) {
-                    TaoLogger.logError("Write failed for block " + targetBlock);
-                    System.exit(1);
-                }
-                requestID++;
+            if (i % (LOAD_SIZE/10) == 0) {
+                requestsPerSecond += 5;
             }
+
+            int readOrWrite = r.nextInt(2);
+            int targetBlock = r.nextInt(NUM_DATA_ITEMS) + 1;
+            doLoadTestOperation(client, readOrWrite, targetBlock, listOfBytes, loadTestExecutor, requestsPerSecond);
+
+            Thread.sleep((int)(1000.0/requestsPerSecond));
         }
 
         long endTime = System.currentTimeMillis();
         TaoLogger.logForce("Ending load test");
 
-        // Get average response time over 1000 operations
-        long total = 0;
-        for (Long l : sResponseTimes) {
-            total += l;
-        }
-        float average = total / ((float) sResponseTimes.size());
+        // Get average response time
+        for (int i = 1; i < 11; i++) {
+            long total = 0;
+            for (Long l : sResponseTimes.get(i*5)) {
+                total += l;
+            }
+            float average = total / ((float) sResponseTimes.get(i*5).size());
 
-        TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");
+            TaoLogger.logForce("TPS: "+(i*5));
+            TaoLogger.logForce("Average response time was " + average + " ms");
+            TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");
+        }
     }
 
     public static void main(String[] args) {
