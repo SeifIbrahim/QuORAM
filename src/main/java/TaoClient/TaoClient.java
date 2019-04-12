@@ -410,7 +410,7 @@ public class TaoClient implements Client {
                         System.out.println(e);
                         e.printStackTrace();
                     }
-                } else if (System.currentTimeMillis() > timeStart + 1000) {
+                } else if (System.currentTimeMillis() > timeStart + 5000) {
                     entry.getValue().cancel(true);
                     System.out.println("Timed out waiting for proxy "+entry.getKey());
                     it.remove();
@@ -456,7 +456,7 @@ public class TaoClient implements Client {
                     } catch (Exception e) {
                         System.out.println(e);
                     }
-                } else if (System.currentTimeMillis() > timeStart + 1000) {
+                } else if (System.currentTimeMillis() > timeStart + 5000) {
                     entry.getValue().cancel(true);
                     System.out.println("Timed out waiting for proxy "+entry.getKey());
                     it.remove();
@@ -655,7 +655,7 @@ public class TaoClient implements Client {
         }
     }
 
-    public static void doLoadTestOperation(Client client, int readOrWrite, int targetBlock, ArrayList<byte[]> listOfBytes, ExecutorService loadTestExecutor, int requestsPerSecond) {
+    public static Future<Integer> doLoadTestOperation(Client client, int readOrWrite, int targetBlock, ArrayList<byte[]> listOfBytes, ExecutorService loadTestExecutor, int requestsPerSecond) {
         Callable<Integer> readTask = () -> {
             byte[] z;
             if (readOrWrite == 0) {
@@ -691,7 +691,7 @@ public class TaoClient implements Client {
             return 0;
         };
 
-        loadTestExecutor.submit(readTask);
+        return loadTestExecutor.submit(readTask);
     }
 
     public static void loadTest(Client client) throws InterruptedException {
@@ -704,7 +704,7 @@ public class TaoClient implements Client {
         long blockID;
         ArrayList<byte[]> listOfBytes = new ArrayList<>();
 
-        for (int i = 1; i < 11; i++) {
+        for (int i = 1; i < 6; i++) {
             sResponseTimes.put(i*5, new ArrayList<>());
         }
 
@@ -730,7 +730,7 @@ public class TaoClient implements Client {
         long startTime = System.currentTimeMillis();
         int requestsPerSecond = 0;
         for (int i = 0; i < LOAD_SIZE; i++) {
-            if (i % (LOAD_SIZE/10) == 0) {
+            if (i % (LOAD_SIZE/5) == 0) {
                 requestsPerSecond += 5;
             }
 
@@ -741,11 +741,14 @@ public class TaoClient implements Client {
             Thread.sleep((int)(1000.0/requestsPerSecond));
         }
 
+        loadTestExecutor.shutdown();
+        loadTestExecutor.awaitTermination(500, TimeUnit.SECONDS);
+
         long endTime = System.currentTimeMillis();
         TaoLogger.logForce("Ending load test");
 
         // Get average response time
-        for (int i = 1; i < 11; i++) {
+        for (int i = 1; i < 6; i++) {
             long total = 0;
             for (Long l : sResponseTimes.get(i*5)) {
                 total += l;
