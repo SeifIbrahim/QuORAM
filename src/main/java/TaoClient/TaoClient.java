@@ -705,9 +705,11 @@ public class TaoClient implements Client {
 
         int tpsStepSize = 1;
         int tpsNumSteps = 10;
+        int initRequestsPerSecond = 11;
+        int requestsPerSecond = initRequestsPerSecond;
 
         for (int i = 1; i <= tpsNumSteps; i++) {
-            sResponseTimes.put(i*tpsStepSize, new ArrayList<>());
+            sResponseTimes.put(initRequestsPerSecond + i*tpsStepSize, new ArrayList<>());
         }
 
         boolean writeStatus;
@@ -730,7 +732,7 @@ public class TaoClient implements Client {
 
         TaoLogger.logForce("Going to start load test");
         long startTime = System.currentTimeMillis();
-        int requestsPerSecond = 0;
+        
         Map<Integer, Double> throughput = new HashMap();
         ExecutorService loadTestExecutor = Executors.newFixedThreadPool(10, Executors.defaultThreadFactory());
         long throughputStartTime = System.currentTimeMillis();
@@ -758,6 +760,7 @@ public class TaoClient implements Client {
 
         loadTestExecutor.shutdown();
         loadTestExecutor.awaitTermination(500, TimeUnit.SECONDS);
+        throughput.put(requestsPerSecond, (LOAD_SIZE/tpsNumSteps)/((System.currentTimeMillis() - throughputStartTime)/1000.0));
 
         long endTime = System.currentTimeMillis();
         TaoLogger.logForce("Ending load test");
@@ -765,14 +768,14 @@ public class TaoClient implements Client {
         // Get average response time
         for (int i = 1; i <= tpsNumSteps; i++) {
             long total = 0;
-            for (Long l : sResponseTimes.get(i*tpsStepSize)) {
+            for (Long l : sResponseTimes.get(initRequestsPerSecond + i*tpsStepSize)) {
                 total += l;
             }
             float average = total / ((float) sResponseTimes.get(i*tpsStepSize).size());
 
-            TaoLogger.logForce("TPS: "+(i*tpsStepSize));
+            TaoLogger.logForce("TPS: "+(initRequestsPerSecond + i*tpsStepSize));
             TaoLogger.logForce("Average response time was " + average + " ms");
-            TaoLogger.logForce("Thoughput: " + throughput.get(i*tpsStepSize)+" TPS");
+            TaoLogger.logForce("Thoughput: " + throughput.get(initRequestsPerSecond + i*tpsStepSize)+" TPS");
         }
     }
 

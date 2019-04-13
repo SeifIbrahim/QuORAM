@@ -43,10 +43,10 @@ public class TaoServer implements Server {
     protected ReentrantLock[] mBucketLocks;
 
     // Max threads for readPath tasks
-    public final int READ_PATH_THREADS = 1;
+    public final int READ_PATH_THREADS = 30;
     
     // Max threads for writeBack or initialize tasks
-    public final int WRITE_BACK_THREADS = 1;
+    public final int WRITE_BACK_THREADS = 10;
 
     // Executor for readPath tasks
     protected ExecutorService mReadPathExecutor;
