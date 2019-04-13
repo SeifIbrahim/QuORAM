@@ -655,8 +655,9 @@ public class TaoClient implements Client {
         }
     }
 
-    public static Future<Integer> doLoadTestOperation(Client client, int readOrWrite, int targetBlock, ArrayList<byte[]> listOfBytes, ExecutorService loadTestExecutor, int requestsPerSecond) {
+    public static Future<Integer> doLoadTestOperation(Client client, int readOrWrite, int targetBlock, ArrayList<byte[]> listOfBytes, ExecutorService loadTestExecutor, int requestsPerSecond, int reqNum) {
         Callable<Integer> readTask = () -> {
+            System.out.println("Started "+reqNum);
             byte[] z;
             if (readOrWrite == 0) {
                 TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
@@ -698,14 +699,15 @@ public class TaoClient implements Client {
         // Random number generator
         SecureRandom r = new SecureRandom();
 
-        ExecutorService loadTestExecutor = Executors.newFixedThreadPool(20, Executors.defaultThreadFactory());
-
         // Do a write for numDataItems blocks
         long blockID;
         ArrayList<byte[]> listOfBytes = new ArrayList<>();
 
-        for (int i = 1; i < 6; i++) {
-            sResponseTimes.put(i*5, new ArrayList<>());
+        int tpsStepSize = 1;
+        int tpsNumSteps = 10;
+
+        for (int i = 1; i <= tpsNumSteps; i++) {
+            sResponseTimes.put(i*tpsStepSize, new ArrayList<>());
         }
 
         boolean writeStatus;
@@ -729,14 +731,27 @@ public class TaoClient implements Client {
         TaoLogger.logForce("Going to start load test");
         long startTime = System.currentTimeMillis();
         int requestsPerSecond = 0;
+        Map<Integer, Double> throughput = new HashMap();
+        ExecutorService loadTestExecutor = Executors.newFixedThreadPool(10, Executors.defaultThreadFactory());
+        long throughputStartTime = System.currentTimeMillis();
+
         for (int i = 0; i < LOAD_SIZE; i++) {
-            if (i % (LOAD_SIZE/5) == 0) {
-                requestsPerSecond += 5;
+            if (i % (LOAD_SIZE/tpsNumSteps) == 0) {
+                if (i > 0) {
+                    loadTestExecutor.shutdown();
+                    loadTestExecutor.awaitTermination(500, TimeUnit.SECONDS);
+                    throughput.put(requestsPerSecond, (LOAD_SIZE/tpsNumSteps)/((System.currentTimeMillis() - throughputStartTime)/1000.0));
+                    throughputStartTime = System.currentTimeMillis();
+                    loadTestExecutor = Executors.newFixedThreadPool(10, Executors.defaultThreadFactory());
+               }
+
+               requestsPerSecond += tpsStepSize;
             }
 
             int readOrWrite = r.nextInt(2);
             int targetBlock = r.nextInt(NUM_DATA_ITEMS) + 1;
-            doLoadTestOperation(client, readOrWrite, targetBlock, listOfBytes, loadTestExecutor, requestsPerSecond);
+            System.out.println("About to schedule "+i);
+            doLoadTestOperation(client, readOrWrite, targetBlock, listOfBytes, loadTestExecutor, requestsPerSecond, i);
 
             Thread.sleep((int)(1000.0/requestsPerSecond));
         }
@@ -748,16 +763,16 @@ public class TaoClient implements Client {
         TaoLogger.logForce("Ending load test");
 
         // Get average response time
-        for (int i = 1; i < 6; i++) {
+        for (int i = 1; i <= tpsNumSteps; i++) {
             long total = 0;
-            for (Long l : sResponseTimes.get(i*5)) {
+            for (Long l : sResponseTimes.get(i*tpsStepSize)) {
                 total += l;
             }
-            float average = total / ((float) sResponseTimes.get(i*5).size());
+            float average = total / ((float) sResponseTimes.get(i*tpsStepSize).size());
 
-            TaoLogger.logForce("TPS: "+(i*5));
+            TaoLogger.logForce("TPS: "+(i*tpsStepSize));
             TaoLogger.logForce("Average response time was " + average + " ms");
-            TaoLogger.logForce("Test took " + (endTime - startTime) + " ms");
+            TaoLogger.logForce("Thoughput: " + throughput.get(i*tpsStepSize)+" TPS");
         }
     }
 
