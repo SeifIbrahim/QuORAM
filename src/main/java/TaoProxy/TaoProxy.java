@@ -82,7 +82,7 @@ public class TaoProxy implements Proxy {
             TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
             // For profiling purposes
-            mProfiler = new TaoProfiler();
+            mProfiler = new TaoProfiler(unitId);
 
             // Initialize needed constants
             TaoConfigs.initConfiguration();
@@ -147,7 +147,7 @@ public class TaoProxy implements Proxy {
             TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
             // For profiling purposes
-            mProfiler = new TaoProfiler();
+            mProfiler = new TaoProfiler(unitId);
 
             // Initialize needed constants
            // TaoConfigs.initConfiguration(minServerSize);

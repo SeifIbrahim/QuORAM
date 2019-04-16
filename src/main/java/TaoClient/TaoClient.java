@@ -494,6 +494,9 @@ public class TaoClient implements Client {
         request.setBlockID(blockID);
         request.setRequestID(requestID);
         request.setClientAddress(mClientAddress);
+        if (opID == null) {
+            opID = new OperationID();
+        }
         request.setOpID(opID);
         if (tag == null) {
             tag = new Tag();
@@ -506,12 +509,13 @@ public class TaoClient implements Client {
             if (ASYNC_LOAD) {
                 sReturnMap.put(requestID, (int) blockID - 1);
             }
-            request.setType(MessageTypes.CLIENT_READ_REQUEST);
             request.setData(new byte[TaoConfigs.BLOCK_SIZE]);
         } else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
-            request.setType(MessageTypes.CLIENT_WRITE_REQUEST);
             request.setData(data);
         }
+
+        request.setType(type);
+
 
         return request;
     }
@@ -630,18 +634,16 @@ public class TaoClient implements Client {
     }
 
     @Override
-    public void writeStatistics() {
+    public void writeStatistics(int unitID) {
         try {
             // Get proxy name and port
-            Socket clientSocket = new Socket(mProxyAddresses.get(0).getHostName(), mProxyAddresses.get(0).getPort());
+            Socket clientSocket = new Socket(mProxyAddresses.get(unitID).getHostName(), mProxyAddresses.get(unitID).getPort());
 
             // Create output stream
             DataOutputStream output = new DataOutputStream(clientSocket.getOutputStream());
 
             // Create client request
-            ClientRequest request = mMessageCreator.createClientRequest();
-            request.setType(MessageTypes.WRITE_STATS);
-            request.setClientAddress(mClientAddress);
+            ClientRequest request = makeRequest(MessageTypes.WRITE_STATS, -1, null, null, null, null);
 
             byte[] serializedRequest = request.serialize();
             byte[] header = MessageUtility.createMessageHeaderBytes(request.getType(), serializedRequest.length);
@@ -765,13 +767,17 @@ public class TaoClient implements Client {
         long endTime = System.currentTimeMillis();
         TaoLogger.logForce("Ending load test");
 
+        for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+            client.writeStatistics(i);
+        }
+
         // Get average response time
         for (int i = 1; i <= tpsNumSteps; i++) {
             long total = 0;
             for (Long l : sResponseTimes.get(initRequestsPerSecond + i*tpsStepSize)) {
                 total += l;
             }
-            float average = total / ((float) sResponseTimes.get(i*tpsStepSize).size());
+            float average = total / ((float) sResponseTimes.get(initRequestsPerSecond + i*tpsStepSize).size());
 
             TaoLogger.logForce("TPS: "+(initRequestsPerSecond + i*tpsStepSize));
             TaoLogger.logForce("Average response time was " + average + " ms");
