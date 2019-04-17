@@ -37,6 +37,8 @@ public class TaoSequencer implements Sequencer {
     // A map of each client to a channel to that client
     protected Map<InetSocketAddress, AsynchronousSocketChannel> mChannelMap;
 
+    public Processor mProcessor;
+
     /**
      * @brief Default constructor for the TaoStore Sequencer
      */
@@ -70,6 +72,8 @@ public class TaoSequencer implements Sequencer {
 
     @Override
     public void onReceiveRequest(ClientRequest req) {
+        mProcessor.readPath(req);
+
         try {
             // Create an empty block with null data
             Block empty = mBlockCreator.createBlock();
