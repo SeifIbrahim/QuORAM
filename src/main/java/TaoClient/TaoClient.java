@@ -20,6 +20,8 @@ import java.security.SecureRandom;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * @brief Class to represent a client of TaoStore
@@ -78,6 +80,10 @@ public class TaoClient implements Client {
 
     public short mClientID;
 
+    public Map<Integer, Long> mBackoffTimeMap = new HashMap<>();
+    public Map<Integer, Integer> mBackoffCountMap = new HashMap<>();
+    public ReadWriteLock backoffLock = new ReentrantReadWriteLock();
+
     /**
      * @brief Default constructor
      */
@@ -94,7 +100,11 @@ public class TaoClient implements Client {
             mProxyAddresses = new ArrayList();
             for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
                 mProxyAddresses.add(new InetSocketAddress(TaoConfigs.ORAM_UNITS.get(i).proxyHost, TaoConfigs.ORAM_UNITS.get(i).proxyPort));
+                mBackoffTimeMap.put(i, new Long(0));
+                mBackoffCountMap.put(i, 0);
             }
+
+
 
             // Create message creator
             mMessageCreator = new TaoMessageCreator();
@@ -127,71 +137,6 @@ public class TaoClient implements Client {
                     }
                 }
             }
-
-            // Create executor
-            mExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
-
-            // Request ID counter
-            mRequestID = new AtomicLong();
-
-            Runnable serializeProcedure = () -> processAllProxyReplies();
-            new Thread(serializeProcedure).start();
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * @brief Constructor
-     * @param messageCreator
-     */
-    public TaoClient(MessageCreator messageCreator) {
-        try {
-            // Initialize needed constants
-            TaoConfigs.initConfiguration();
-
-            // Get the current client's IP
-            String currentIP = InetAddress.getLocalHost().getHostAddress();
-            mClientAddress = new InetSocketAddress(currentIP, TaoConfigs.CLIENT_PORT);
-
-            // Initialize list of proxy addresses
-            mProxyAddresses = new ArrayList();
-            for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-                mProxyAddresses.add(new InetSocketAddress(TaoConfigs.ORAM_UNITS.get(i).proxyHost, TaoConfigs.ORAM_UNITS.get(i).proxyPort));
-            }
-
-            // Create message creator
-            mMessageCreator = messageCreator;
-
-            // Initialize response wait map
-            mResponseWaitMap = new ConcurrentHashMap<>();
-
-            // Thread group used for asynchronous I/O
-            mThreadGroup = AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
-
-            boolean connected = false;
-            mChannels = new HashMap();
-            while (!connected) {
-                try {
-                    // Create and connect channels to proxies
-                    for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-                        AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
-                        Future connection = channel.connect(mProxyAddresses.get(i));
-                        connection.get();
-                        mChannels.put(i, channel);
-                    }
-                    connected = true;
-                } catch (Exception e) {
-                    try {
-                    } catch (Exception e2) {
-                    }
-                    try {
-                        Thread.sleep(1000);
-                    } catch (InterruptedException e3) {
-                    }
-                }
-            }
-
 
             // Create executor
             mExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
@@ -366,29 +311,116 @@ public class TaoClient implements Client {
 
     }
 
+    public int selectUnit(Set<Integer> quorum) {
+        // Find the ORAM units which can be contacted at this time
+        ArrayList<Integer> available = new ArrayList<>();
+
+        while (available.isEmpty()) {
+            backoffLock.readLock().lock();
+
+            Long time = System.currentTimeMillis();
+            Long soonestBackoffTime = new Long(-1);
+            for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+                // Ignore any units already in the quorum
+                if (quorum.contains(i)) {
+                    continue;
+                }
+
+                Long timeout = mBackoffTimeMap.get(i);
+                if (time > timeout) {
+                    available.add(i);
+                } else if (soonestBackoffTime == -1 || timeout < soonestBackoffTime) {
+                    soonestBackoffTime = timeout;
+                }
+            }
+
+            backoffLock.readLock().unlock();
+
+            // If none of the timeouts have expired yet, wait for the soonest
+            // one to expire
+            if (available.isEmpty()) {
+                try {
+                    Thread.sleep(soonestBackoffTime - time);
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        return available.get((new Random()).nextInt(available.size()));
+    }
+
+    public Set<Integer> buildQuorum() {
+        Set<Integer> quorum = new LinkedHashSet<>();
+
+        while (quorum.size() < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+            quorum.add(selectUnit(quorum));
+        }
+
+        return quorum;
+    }
+
+    public void markResponsive(int unitID) {
+        backoffLock.writeLock().lock();
+
+        mBackoffCountMap.put(unitID, 0);
+
+        backoffLock.writeLock().unlock();
+    }
+
+    public void markUnresponsive(int unitID) {
+        backoffLock.writeLock().lock();
+        long time = System.currentTimeMillis();
+        mBackoffCountMap.put(unitID, mBackoffCountMap.get(unitID) + 1);
+
+        // Do exponential backoff
+        long backoff = (long)Math.pow(2, mBackoffCountMap.get(unitID)) + 500 + (new Random().nextInt(500));
+        System.out.println("Unit "+unitID+" will not be contacted for "+backoff+"ms");
+        mBackoffTimeMap.put(unitID, time + backoff);
+        backoffLock.writeLock().unlock();
+    }
+
     public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
         System.out.println("\n\n");
 
+        // Assign the operation a unique ID
         OperationID opID;
         synchronized (mNextOpID) {
             opID = mNextOpID;
             mNextOpID = mNextOpID.getNext();
         }
 
+        // Select the initial quorum for this operation
+        System.out.println("Quorum contains:");
+        Set<Integer> quorum = buildQuorum();
+        for (int i : quorum) {
+            System.out.println(i);
+        }
+
         System.out.println("Starting logical operation "+opID);
 
         // Broadcast read(blockID) to all ORAM units
+        Map<Integer, Long> timeStart = new HashMap<>();
         Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
-        for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+        for (int i : quorum) {
             readResponsesWaiting.put(i, readAsync(blockID, i, opID));
+            timeStart.put(i, System.currentTimeMillis());
         }
 
-        // Wait for a read quorum (here a simple majority) of responses
         byte[] writebackVal = null;
         Tag tag = null;
-        long timeStart = System.currentTimeMillis();
+
+        // Wait for a read quorum (here a simple majority) of responses
         int responseCount = 0;
         while(responseCount < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+            while (quorum.size() < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+                System.out.println("Adding unit to quorum");
+                int addedUnit = selectUnit(quorum);
+                quorum.add(addedUnit);
+                readResponsesWaiting.put(addedUnit, readAsync(blockID, addedUnit, opID));
+                timeStart.put(addedUnit, System.currentTimeMillis());
+            }
+
             Iterator it = readResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
@@ -406,14 +438,20 @@ public class TaoClient implements Client {
                         
                         it.remove();
                         responseCount++;
+
+                        markResponsive(entry.getKey());
                     } catch (Exception e) {
                         System.out.println(e);
                         e.printStackTrace();
                     }
-                } else if (System.currentTimeMillis() > timeStart + 5000) {
+                } else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 2000) {
                     entry.getValue().cancel(true);
                     System.out.println("Timed out waiting for proxy "+entry.getKey());
                     it.remove();
+
+                    // Remove unit from quorum and mark unresponsive
+                    quorum.remove(entry.getKey());
+                    markUnresponsive(entry.getKey());
                 }
             }
         }
@@ -437,12 +475,12 @@ public class TaoClient implements Client {
         // Broadcast write(blockID, writeback value, writeback tag)
         // to all ORAM units
         Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
-        for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+        for (int i : quorum) {
             writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i, opID));
+            timeStart.put(i, System.currentTimeMillis());
         }
 
         // Wait for a write quorum of acks (here a simple majority)
-        timeStart = System.currentTimeMillis();
         responseCount = 0;
         while(responseCount < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
             it = writeResponsesWaiting.entrySet().iterator();
@@ -456,10 +494,11 @@ public class TaoClient implements Client {
                     } catch (Exception e) {
                         System.out.println(e);
                     }
-                } else if (System.currentTimeMillis() > timeStart + 5000) {
+                } else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
                     entry.getValue().cancel(true);
                     System.out.println("Timed out waiting for proxy "+entry.getKey());
-                    it.remove();
+
+                    return null;
                 }
             }
         }
