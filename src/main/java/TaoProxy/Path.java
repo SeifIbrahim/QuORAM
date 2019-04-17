@@ -1,5 +1,8 @@
 package TaoProxy;
 
+import java.util.Set;
+import java.util.ArrayList;
+
 /**
  * @brief Interface to represent a path
  */
@@ -76,4 +79,6 @@ public interface Path {
      * @brief Unlock this path, allowing others to try and obtain lock
      */
     void unlockPath();
+
+    ArrayList<Block> removeBlocksInSet(Set<Long> blockIDs);
 }

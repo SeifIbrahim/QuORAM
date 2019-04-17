@@ -5,7 +5,7 @@ package TaoProxy;
  */
 public class TaoLogger {
     // Current log level
-    public static int logLevel = 1;
+    public static int logLevel = 0;
 
     // Constants for log level
     public static int LOG_OFF = 999;

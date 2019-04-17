@@ -130,7 +130,8 @@ public class TaoProxy implements Proxy {
             mSequencer = new TaoSequencer(mMessageCreator, mPathCreator);
             mProcessor = new TaoProcessor(this, mSequencer, mThreadGroup, mMessageCreator, mPathCreator, mCryptoUtil, mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler, mUnitId);
             mSequencer.mProcessor = mProcessor;
-            mInterface = new TaoInterface(mSequencer);
+            mInterface = new TaoInterface(mSequencer, mProcessor, mMessageCreator);
+            mProcessor.mInterface = mInterface;
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -315,7 +316,7 @@ public class TaoProxy implements Proxy {
                                 TaoLogger.logDebug("Proxy will handle client request #" + clientReq.getRequestID());
 
                                 // When we receive a request, we first send it to the sequencer
-                                mSequencer.onReceiveRequest(clientReq);
+                                mInterface.handleRequest(clientReq);
 
                                 // Serve the next client request
                                 Runnable serializeProcedure = () -> serveClient(channel);

@@ -5,6 +5,8 @@ import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Longs;
 
 import java.util.Arrays;
+import java.util.Set;
+import java.util.ArrayList;
 
 /**
  * @brief Implementation of a path for TaoStore implementing the Path interface
@@ -206,5 +208,14 @@ public class TaoPath implements Path {
         for (int i = 0; i < mBuckets.length; i++) {
             mBuckets[i].unlockBucket();
         }
+    }
+
+    @Override
+    public ArrayList<Block> removeBlocksInSet(Set<Long> blockIDs) {
+        ArrayList<Block> removed = new ArrayList<>();
+        for (int i = 0; i < mBuckets.length; i++) {
+            removed.addAll(mBuckets[i].removeBlocksInSet(blockIDs));
+        }
+        return removed;
     }
 }

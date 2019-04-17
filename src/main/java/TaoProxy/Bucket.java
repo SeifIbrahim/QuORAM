@@ -1,6 +1,8 @@
 package TaoProxy;
 
 import java.util.List;
+import java.util.Set;
+import java.util.ArrayList;
 
 /**
  * @brief Class to represent a bucket
@@ -93,4 +95,6 @@ public interface Bucket {
      * @param serialized
      */
     void initFromSerialized(byte[] serialized);
+
+    ArrayList<Block> removeBlocksInSet(Set<Long> blockIDs);
 }

@@ -7,6 +7,7 @@ import com.google.common.primitives.Longs;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
@@ -295,5 +296,26 @@ public class TaoBucket implements Bucket {
     @Override
     public void unlockBucket() {
         mRWL.writeLock().unlock();
+    }
+
+    @Override
+    public ArrayList<Block> removeBlocksInSet(Set<Long> blockIDs) {
+        ArrayList<Block> removed = new ArrayList<>();
+        try {
+            // Get write lock
+            mRWL.writeLock().lock();
+
+            // Search for the correct block
+            for (int i = 0; i < TaoConfigs.BLOCKS_IN_BUCKET; i++) {
+                if (checkBlockFilled(i) && blockIDs.contains(mBlocks[i].getBlockID())) {
+                    markBlockUnfilled(i);
+                    removed.add(mBlocks[i]);
+                }
+            }
+        } finally {
+            // Release the write lock
+            mRWL.writeLock().unlock();
+        }
+        return removed;
     }
 }

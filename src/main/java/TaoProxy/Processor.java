@@ -32,4 +32,6 @@ public interface Processor {
      * @param timeStamp
      */
     void writeBack(long timeStamp);
+
+    void writeDataToBlock(long blockID, byte[] data, Tag tag);
 }

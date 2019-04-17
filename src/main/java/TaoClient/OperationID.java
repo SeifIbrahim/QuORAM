@@ -33,4 +33,22 @@ public class OperationID {
     public String toString() {
         return seqNum + ":" + clientID;
     }
+
+    @Override
+    public int hashCode() {
+        return (int)(seqNum+clientID);
+    }
+
+    //Compare only account numbers
+    @Override
+    public boolean equals(Object rhs) {
+        if (this == rhs)
+            return true;
+        if (rhs == null)
+            return false;
+        if (getClass() != rhs.getClass())
+            return false;
+        OperationID other = (OperationID) rhs;
+        return (seqNum == other.seqNum && clientID == other.clientID);
+    }
 }

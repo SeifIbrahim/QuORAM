@@ -104,6 +104,8 @@ public class TaoProcessor implements Processor {
 
     protected int mUnitId;
 
+    public TaoInterface mInterface;
+
     /**
      * @brief Constructor
      * @param proxy
@@ -555,6 +557,14 @@ public class TaoProcessor implements Processor {
         byte[] encryptedPathBytes = resp.getPathBytes();
         Path decryptedPath = mCryptoUtil.decryptPath(encryptedPathBytes);
 
+        // Move any block that is pointed to by the interface's incompleteCache
+        // to the stash
+        ArrayList<Block> toPutInStash = decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet());
+        for (Block b : toPutInStash) {
+            System.out.println("Put block "+b.getBlockID() + " in stash");
+            mStash.addBlock(b);
+        }
+
         // Set the correct path ID
         decryptedPath.setPathID(resp.getPathID());
 
@@ -565,6 +575,7 @@ public class TaoProcessor implements Processor {
         // We update the timestamp at this point in order to ensure that a delete does not delete an ancestor node
         // of a node that has been flushed to
         mSubtree.addPath(decryptedPath, mWriteBackCounter);
+
 
         // Profiling
         mProfiler.addPathTime(System.currentTimeMillis() - preAddPathTime);
@@ -763,6 +774,24 @@ public class TaoProcessor implements Processor {
         TaoLogger.logDebug("Trying to write data for blockID " + blockID);
         TaoLogger.logDebug("I think this is at path: " + mPositionMap.getBlockPosition(blockID));
 
+        boolean elementDoesExist = mPositionMap.getBlockPosition(blockID) != -1;
+
+        //Note: this is only reached when TaoInterface calls this method
+        if (!elementDoesExist) {
+            Block newBlock = mPathCreator.createBlock();
+            newBlock.setBlockID(blockID);
+            newBlock.setData(data);
+            newBlock.setTag(tag);
+
+            // Add block to stash and assign random path position
+            mStash.addBlock(newBlock);
+
+            int newPathID = mCryptoUtil.getRandomPathID();
+            TaoLogger.logInfo("Assigning blockID " + blockID + " to path " + newPathID);
+            mPositionMap.setBlockPosition(blockID, newPathID);
+            return;
+        }
+
         // Due to multiple threads moving blocks around, we need to run this in a loop
         while (true) {
             // Check if block is in subtree
@@ -883,6 +912,12 @@ public class TaoProcessor implements Processor {
         // Get all the blocks from the stash and blocks from this path
         ArrayList<Block> blocksToFlush = new ArrayList<>();
         blocksToFlush.addAll(mStash.getAllBlocks());
+        for (int i = 0; i < blocksToFlush.size(); i++) {
+            if (mInterface.mBlocksInCache.keySet().contains(blocksToFlush.get(i))) {
+                blocksToFlush.remove(i);
+                i--;
+            }
+        }
         Bucket[] buckets = mSubtree.getPath(pathID).getBuckets();
         for (Bucket b : buckets) {
             blocksToFlush.addAll(b.getFilledBlocks());
