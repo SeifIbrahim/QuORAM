@@ -37,7 +37,11 @@ public class TaoProfiler implements Profiler {
     protected Map<InetSocketAddress, Map<ClientRequest, Long>> mReadPathSendToRecvTimes;
     protected Map<InetSocketAddress, Map<Long, Long>> mWriteBackSendToRecvTimes;
 
-    public TaoProfiler() {
+    protected int unitID;
+
+    public TaoProfiler(int uID) {
+        unitID = uID;
+
         mOutputDirectory = "profile";
 
         mReadPathStatistics = new DescriptiveStatistics();
@@ -68,7 +72,7 @@ public class TaoProfiler implements Profiler {
         String report = null;
         String filename = null;
 
-        filename = "readPathStats.txt";
+        filename = "readPathStats"+unitID+".txt";
         synchronized (mReadPathStatistics) {
             report = mReadPathStatistics.toString();
         }
@@ -82,7 +86,7 @@ public class TaoProfiler implements Profiler {
         }
 
 
-        filename = "writeBackStats.txt";
+        filename = "writeBackStats"+unitID+".txt";
         synchronized (mWriteBackStatistics) {
             report = mWriteBackStatistics.toString();
         }
@@ -95,7 +99,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "readPathSendToRecvStats.txt";
+        filename = "readPathSendToRecvStats"+unitID+".txt";
         synchronized (mReadPathSendToRecvStatistics) {
             report = mReadPathSendToRecvStatistics.toString();
         }
@@ -108,7 +112,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "writeBackSendToRecvStats.txt";
+        filename = "writeBackSendToRecvStats"+unitID+".txt";
         synchronized (mWriteBackSendToRecvStatistics) {
             report = mWriteBackSendToRecvStatistics.toString();
         }
@@ -121,7 +125,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "readPathServerProcessingStats.txt";
+        filename = "readPathServerProcessingStats"+unitID+".txt";
         synchronized (mReadPathServerStatistics) {
             report = mReadPathServerStatistics.toString();
         }
@@ -134,7 +138,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "writeBackServerProcessingStats.txt";
+        filename = "writeBackServerProcessingStats"+unitID+".txt";
         synchronized (mWriteBackServerStatistics) {
             report = mWriteBackServerStatistics.toString();
         }
@@ -147,7 +151,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "readPathNetStats.txt";
+        filename = "readPathNetStats"+unitID+".txt";
         synchronized (mReadPathNetStatistics) {
             report = mReadPathNetStatistics.toString();
         }
@@ -160,7 +164,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "writeBackNetStats.txt";
+        filename = "writeBackNetStats"+unitID+".txt";
         synchronized (mWriteBackNetStatistics) {
             report = mWriteBackNetStatistics.toString();
         }
@@ -173,7 +177,7 @@ public class TaoProfiler implements Profiler {
             e.printStackTrace();
         }
 
-        filename = "addPathStats.txt";
+        filename = "addPathStats"+unitID+".txt";
         synchronized (mAddPathStatistics) {
             report = mAddPathStatistics.toString();
         }
