@@ -51,4 +51,8 @@ num_storage_servers=1
 # The amout of ORAM units
 num_oram_units=3
 
+# The maximum number of in-progress operations that can be stored
+# in the incomplete cache
+incomplete_cache_limit = 100
+
 

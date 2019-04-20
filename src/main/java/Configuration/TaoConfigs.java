@@ -83,6 +83,8 @@ public class TaoConfigs {
 
     public static List<Unit> ORAM_UNITS = new ArrayList<>();
 
+    public static int INCOMPLETE_CACHE_LIMIT;
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -139,6 +141,9 @@ public class TaoConfigs {
 
                 String num_oram_units = properties.getProperty("num_oram_units");
                 int num_units = Integer.parseInt(num_oram_units);
+
+                String num_cache_limit = properties.getProperty("incomplete_cache_limit");
+                INCOMPLETE_CACHE_LIMIT = Integer.parseInt(num_cache_limit);
 
                 for (int i = 0; i < num_units; i++) {
                     String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));
