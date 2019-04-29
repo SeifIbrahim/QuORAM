@@ -483,6 +483,14 @@ public class TaoClient implements Client {
         // Wait for a write quorum of acks (here a simple majority)
         responseCount = 0;
         while(responseCount < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+            while (quorum.size() < (int)((TaoConfigs.ORAM_UNITS.size()+1)/2)) {
+                System.out.println("Adding unit to quorum");
+                int addedUnit = selectUnit(quorum);
+                quorum.add(addedUnit);
+                readResponsesWaiting.put(addedUnit, readAsync(blockID, addedUnit, opID));
+                timeStart.put(addedUnit, System.currentTimeMillis());
+            }
+            
             it = writeResponsesWaiting.entrySet().iterator();
             while (it.hasNext()) {
                 Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry)it.next();
@@ -497,7 +505,7 @@ public class TaoClient implements Client {
                 } else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
                     entry.getValue().cancel(true);
                     System.out.println("Timed out waiting for proxy "+entry.getKey());
-
+                    it.remove();
                     return null;
                 }
             }
