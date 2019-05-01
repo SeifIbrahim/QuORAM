@@ -8,6 +8,7 @@ import Messages.*;
 import com.google.common.primitives.Bytes;
 import com.google.common.primitives.Ints;
 
+import java.util.concurrent.*;
 import java.io.DataOutputStream;
 import java.io.InputStream;
 import java.net.InetSocketAddress;
@@ -24,6 +25,8 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.List;
 import java.util.ArrayList;
+
+import org.mapdb.*;
 
 /**
  * @brief Class that represents the proxy which handles requests from clients and replies from servers
@@ -62,6 +65,10 @@ public class TaoProxy implements Proxy {
 
     protected int mUnitId;
 
+    protected DB mKVStore;
+
+    protected ConcurrentMap mKVMap;
+
     //public static final transient ReentrantLock mSubtreeLock = new ReentrantLock();
 
     /**
@@ -87,177 +94,16 @@ public class TaoProxy implements Proxy {
             // Initialize needed constants
             TaoConfigs.initConfiguration();
 
-            // Create a CryptoUtil
-            mCryptoUtil = new TaoCryptoUtil();
-
-            // Assign subtree
-            mSubtree = subtree;
-
             mUnitId = unitId;
-
-            // Create a position map
-            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
-            List<InetSocketAddress> storageServerAddresses = new ArrayList();
-            InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
-            storageServerAddresses.add(serverAddr);
-            mPositionMap = new TaoPositionMap(storageServerAddresses);
 
             // Assign the message and path creators
             mMessageCreator = messageCreator;
-            mPathCreator = pathCreator;
 
             // Create a thread pool for asynchronous sockets
             mThreadGroup = AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
 
-            // Map each leaf to a relative leaf for the servers
-            mRelativeLeafMapper = new HashMap<>();
-            int numServers = 1;
-            int numLeaves = 1 << TaoConfigs.TREE_HEIGHT;
-            int leavesPerPartition = numLeaves / numServers;
-            for (int i = 0; i < numLeaves; i += numLeaves/numServers) {
-                long j = i;
-                long relativeLeaf = 0;
-                while (j < i + leavesPerPartition) {
-                    mRelativeLeafMapper.put(j, relativeLeaf);
-                    j++;
-                    relativeLeaf++;
-                }
-            }
-
-            // Initialize the sequencer and proxy
-            mSequencer = new TaoSequencer(mMessageCreator, mPathCreator);
-            mProcessor = new TaoProcessor(this, mSequencer, mThreadGroup, mMessageCreator, mPathCreator, mCryptoUtil, mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler, mUnitId);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * @brief Constructor
-     * @param messageCreator
-     * @param pathCreator
-     * @param subtree
-     * @param processor
-     */
-    public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, Processor processor, int unitId) {
-        try {
-            mUnitId = unitId;
-
-            // For trace purposes
-            TaoLogger.logLevel = TaoLogger.LOG_INFO;
-
-            // For profiling purposes
-            mProfiler = new TaoProfiler(unitId);
-
-            // Initialize needed constants
-           // TaoConfigs.initConfiguration(minServerSize);
-
-            // Create a CryptoUtil
-            mCryptoUtil = new TaoCryptoUtil();
-
-            // Assign subtree
-            mSubtree = subtree;
-
-            // Create a position map
-            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
-            List<InetSocketAddress> storageServerAddresses = new ArrayList();
-            InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
-            storageServerAddresses.add(serverAddr);
-            mPositionMap = new TaoPositionMap(storageServerAddresses);
-
-            // Assign the message and path creators
-            mMessageCreator = messageCreator;
-            mPathCreator = pathCreator;
-
-            // Create a thread pool for asynchronous sockets
-            mThreadGroup = AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
-
-            // Initialize the sequencer and proxy
-            mSequencer = new TaoSequencer(mMessageCreator, mPathCreator);
-            mProcessor = processor;
-
-            // Map each leaf to a relative leaf for the servers
-            mRelativeLeafMapper = new HashMap<>();
-            int numServers = 1;
-            int numLeaves = 1 << TaoConfigs.TREE_HEIGHT;
-            int leavesPerPartition = numLeaves / numServers;
-            for (int i = 0; i < numLeaves; i += numLeaves/numServers) {
-                long j = i;
-                long relativeLeaf = 0;
-                while (j < i + leavesPerPartition) {
-                    mRelativeLeafMapper.put(j, relativeLeaf);
-                    j++;
-                    relativeLeaf++;
-                }
-            }
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-    }
-
-    /**
-     * @brief Function to initialize an empty tree on the server side
-     */
-    public void initializeServer() {
-        try {
-            // Initialize the top of the subtree
-            mSubtree.initRoot();
-
-            // Get the total number of paths
-            int totalPaths = 1 << TaoConfigs.TREE_HEIGHT;
-
-            TaoLogger.logInfo("Tree height is " + TaoConfigs.TREE_HEIGHT);
-            TaoLogger.logInfo("Total paths " + totalPaths);
-
-            // Variables to both hold the data of a path as well as how big the path is
-            byte[] dataToWrite;
-
-            // Create each connection
-            Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
-            Socket serverSocket = new Socket(u.serverHost, u.serverPort);
-
-            // Loop to write each path to server
-            for (int i = 0; i < totalPaths; i++) {
-                TaoLogger.logForce("Creating path " + i);
-
-                DataOutputStream output = new DataOutputStream(serverSocket.getOutputStream());
-                InputStream input = serverSocket.getInputStream();
-
-                // Create empty paths and serialize
-                Path defaultPath = mPathCreator.createPath();
-                defaultPath.setPathID(mRelativeLeafMapper.get(((long) i)));
-
-                // Encrypt path
-                dataToWrite = mCryptoUtil.encryptPath(defaultPath);
-
-                // Create a proxy write request
-                ProxyRequest writebackRequest = mMessageCreator.createProxyRequest();
-                writebackRequest.setType(MessageTypes.PROXY_INITIALIZE_REQUEST);
-                writebackRequest.setPathSize(dataToWrite.length);
-                writebackRequest.setDataToWrite(dataToWrite);
-
-                // Serialize the proxy request
-                byte[] proxyRequest = writebackRequest.serialize();
-
-                // Send the type and size of message to server
-                byte[] messageTypeBytes = Ints.toByteArray(MessageTypes.PROXY_INITIALIZE_REQUEST);
-                byte[] messageLengthBytes = Ints.toByteArray(proxyRequest.length);
-                output.write(Bytes.concat(messageTypeBytes, messageLengthBytes));
-
-                // Send actual message to server
-                output.write(proxyRequest);
-
-                // Read in the response
-                // TODO: Currently not doing anything with response, possibly do something
-                byte[] typeAndSize = new byte[8];
-                input.read(typeAndSize);
-                int type = Ints.fromByteArray(Arrays.copyOfRange(typeAndSize, 0, 4));
-                int length = Ints.fromByteArray(Arrays.copyOfRange(typeAndSize, 4, 8));
-                byte[] message = new byte[length];
-                input.read(message);
-            }
-
-            serverSocket.close();
+            mKVStore = DBMaker.fileDB("oram"+mUnitId+".db").closeOnJvmShutdown().make();
+            mKVMap = mKVStore.hashMap("map", Serializer.LONG, Serializer.BYTE_ARRAY).createOrOpen();
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -265,12 +111,62 @@ public class TaoProxy implements Proxy {
 
     @Override
     public void onReceiveRequest(ClientRequest req) {
-        // When we receive a request, we first send it to the sequencer
-        // mSequencer.onReceiveRequest(req);
+        // Create response
+        ProxyResponse response = mMessageCreator.createProxyResponse();
+        response.setClientRequestID(req.getRequestID());
 
-        // We send the request to the processor, starting with the read path method
-        TaoLogger.logInfo("\n\n\nGot a client request ("+req.getOpID()+") for "+req.getBlockID());
-        mProcessor.readPath(req);
+        if (req.getType() == MessageTypes.CLIENT_READ_REQUEST) {
+            System.out.println("Got read request");
+            byte[] blockBytes = (byte[])mKVMap.getOrDefault(req.getBlockID(), null);
+            Block b = new TaoBlock();
+            if (blockBytes != null) {
+                b.initFromSerialized(blockBytes);
+            }
+            response.setReturnTag(b.getTag());
+            response.setReturnData(b.getData());
+            response.setWriteStatus(false);
+        } else if (req.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
+            byte[] blockBytes = (byte[])mKVMap.getOrDefault(req.getBlockID(), null);
+            Block b = new TaoBlock();
+            if (blockBytes != null) {
+                b.initFromSerialized(blockBytes);
+            }
+            if (req.getTag().compareTo(b.getTag()) > 0) {
+                b.setData(req.getData());
+                b.setTag(req.getTag());
+                b.setBlockID(req.getBlockID());
+                mKVMap.put(req.getBlockID(), b.serialize());
+            }
+            response.setWriteStatus(true);
+            response.setReturnTag(new Tag());
+            System.out.println("Wrote block "+req.getBlockID());
+        } 
+        
+
+        // Get channel
+        AsynchronousSocketChannel clientChannel = req.getChannel();
+
+        // Create a response to send to client
+        byte[] serializedResponse = response.serialize();
+        byte[] header = MessageUtility.createMessageHeaderBytes(MessageTypes.PROXY_RESPONSE, serializedResponse.length);
+        ByteBuffer fullMessage = ByteBuffer.wrap(Bytes.concat(header, serializedResponse));
+
+        // Make sure only one response is sent at a time
+        synchronized (clientChannel) {
+            // Send message
+            while (fullMessage.remaining() > 0) {
+                Future<Integer> writeResult = clientChannel.write(fullMessage);
+                try {
+                    writeResult.get();
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+                //System.out.println("Replied to client");
+            }
+
+            // Clear buffer
+            fullMessage = null;
+        }
     }
 
     @Override
@@ -374,9 +270,6 @@ public class TaoProxy implements Proxy {
 
                                 TaoLogger.logDebug("Proxy will handle client request #" + clientReq.getRequestID());
 
-                                // When we receive a request, we first send it to the sequencer
-                                mSequencer.onReceiveRequest(clientReq);
-
                                 // Serve the next client request
                                 Runnable serializeProcedure = () -> serveClient(channel);
                                 new Thread(serializeProcedure).start();
@@ -424,8 +317,6 @@ public class TaoProxy implements Proxy {
             // Create proxy
             TaoProxy proxy = new TaoProxy(new TaoMessageCreator(), new TaoBlockCreator(), new TaoSubtree(), unitId);
 
-            // Initialize and run server
-            proxy.initializeServer();
             TaoLogger.logForce("Finished init, running proxy");
             proxy.run();
         } catch (Exception e) {
