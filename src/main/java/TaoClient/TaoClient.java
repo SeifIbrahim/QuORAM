@@ -799,9 +799,8 @@ public class TaoClient implements Client {
         TaoLogger.logForce("Thoughput: " + throughput);
     }
 
-    public static Future<Integer> doLoadTestOperationNoRep(Client client, int readOrWrite, int targetBlock, ArrayList<byte[]> listOfBytes, ExecutorService loadTestExecutor, int requestsPerSecond, int reqNum, int unitToUse) {
+    public static Future<Integer> doLoadTestOperationNoRep(Client client, int readOrWrite, long targetBlock, ExecutorService loadTestExecutor, int unitToUse, int reqNum) {
         Callable<Integer> readTask = () -> {
-            System.out.println("Started "+reqNum);
             byte[] z;
             if (readOrWrite == 0) {
                 TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
@@ -810,13 +809,8 @@ public class TaoClient implements Client {
                 long start = System.currentTimeMillis();
 
                 z = client.readAsync(targetBlock, unitToUse, new OperationID()).get().getReturnData();
-                sResponseTimes.get(requestsPerSecond).add(System.currentTimeMillis() - start);
+                sResponseTimes.add(System.currentTimeMillis() - start);
                 System.out.println("Read took "+(System.currentTimeMillis() - start));
-
-                if (!Arrays.equals(listOfBytes.get(targetBlock-1), z)) {
-                    TaoLogger.logError("Read failed for block " + targetBlock);
-                    System.exit(1);
-                }
             } else {
                 TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
 
@@ -824,9 +818,11 @@ public class TaoClient implements Client {
 
                 Tag tag = new Tag();
                 tag.seqNum = reqNum;
+                byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
+                Arrays.fill(dataToWrite, (byte) targetBlock);
                 long start = System.currentTimeMillis();
-                boolean writeStatus = (client.writeAsync(targetBlock, listOfBytes.get(targetBlock-1), tag, unitToUse, new OperationID()).get() != null);
-                sResponseTimes.get(requestsPerSecond).add(System.currentTimeMillis() - start);
+                boolean writeStatus = (client.writeAsync(targetBlock, dataToWrite, tag, unitToUse, new OperationID()).get() != null);
+                sResponseTimes.add(System.currentTimeMillis() - start);
                 System.out.println("Write took "+(System.currentTimeMillis() - start));
 
                 if (!writeStatus) {
@@ -844,56 +840,60 @@ public class TaoClient implements Client {
 
     public static void loadTestNoReplication(Client client) {
         int unitToUse = 0;
+        int requestsPerSecond = 10;
 
         // Random number generator
         SecureRandom r = new SecureRandom();
 
-        // Do a write for numDataItems blocks
-        long blockID;
-        ArrayList<byte[]> listOfBytes = new ArrayList<>();
+        long totalNodes = (long)Math.pow(2,TaoConfigs.TREE_HEIGHT + 1) - 1;
+        long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
 
-        int requestsPerSecond = 5;
+        // Do LOAD_SIZE/10 random operations for warmup
+        PrimitiveIterator.OfLong blockIDGenerator = r.longs(LOAD_SIZE/10, 0, totalBlocks - 1).iterator();
+        for (int i = 0; i < LOAD_SIZE/10; i++) {
+            long blockID = blockIDGenerator.next();
+            int readOrWrite = r.nextInt(2);
 
-        sResponseTimes.put(requestsPerSecond, new ArrayList<>());
-
-        boolean writeStatus;
-        for (int i = 1; i <= NUM_DATA_ITEMS; i++) {
-            TaoLogger.logInfo("Doing a write for block " + i);
-            blockID = i;
-            byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
-            Arrays.fill(dataToWrite, (byte) blockID);
-            listOfBytes.add(dataToWrite);
-
-            Tag tag = new Tag();
-            tag.seqNum = i;
-            try {
-                writeStatus = (client.writeAsync(blockID, dataToWrite, tag, unitToUse, new OperationID()).get() != null);
-            } catch (Exception e) {
-                System.out.println("Write failed");
-                e.printStackTrace();
-                return;            
-            }
-            if (!writeStatus) {
-                TaoLogger.logError("Write failed for block " + i);
-                System.exit(1);
+            if (readOrWrite == 0) {
+                byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
+                Arrays.fill(dataToWrite, (byte) blockID);
+                Tag tag = new Tag();
+                tag.seqNum = i;
+                try {
+                    client.writeAsync(blockID, dataToWrite, tag, unitToUse, new OperationID()).get();
+                } catch (Exception e) {
+                    System.out.println("Write failed");
+                    e.printStackTrace();
+                    return;            
+                }
             } else {
-                TaoLogger.logInfo("Write was successful for " + i);
+                byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
+                Arrays.fill(dataToWrite, (byte) blockID);
+
+                try {
+                    client.readAsync(blockID, unitToUse, new OperationID()).get();
+                } catch (Exception e) {
+                    System.out.println("Read failed");
+                    e.printStackTrace();
+                    return;            
+                }
             }
         }
 
+        // Do load test
+        blockIDGenerator = r.longs(LOAD_SIZE, 0, totalBlocks - 1).iterator();
+
         TaoLogger.logForce("Going to start load test");
-        long startTime = System.currentTimeMillis();
         
-        Map<Integer, Double> throughput = new HashMap();
         ExecutorService loadTestExecutor = Executors.newFixedThreadPool(10, Executors.defaultThreadFactory());
         long throughputStartTime = System.currentTimeMillis();
 
         for (int i = 0; i < LOAD_SIZE; i++) {
 
             int readOrWrite = r.nextInt(2);
-            int targetBlock = r.nextInt(NUM_DATA_ITEMS) + 1;
+            long targetBlock = blockIDGenerator.next();
             System.out.println("About to schedule "+i);
-            doLoadTestOperationNoRep(client, readOrWrite, targetBlock, listOfBytes, loadTestExecutor, requestsPerSecond, i + NUM_DATA_ITEMS + 1, unitToUse);
+            doLoadTestOperationNoRep(client, readOrWrite, targetBlock, loadTestExecutor, unitToUse, i + LOAD_SIZE/10);
 
             try {
                 Thread.sleep((int)(1000.0/requestsPerSecond));
@@ -910,7 +910,7 @@ public class TaoClient implements Client {
             e.printStackTrace();
             return;
         }
-        throughput.put(requestsPerSecond, (LOAD_SIZE)/((System.currentTimeMillis() - throughputStartTime)/1000.0));
+        double throughput = (LOAD_SIZE)/((System.currentTimeMillis() - throughputStartTime)/1000.0);
 
         long endTime = System.currentTimeMillis();
         TaoLogger.logForce("Ending load test");
@@ -921,14 +921,14 @@ public class TaoClient implements Client {
 
         // Get average response time
         long total = 0;
-        for (Long l : sResponseTimes.get(requestsPerSecond)) {
+        for (Long l : sResponseTimes) {
             total += l;
         }
-        float average = total / ((float) sResponseTimes.get(requestsPerSecond).size());
+        float average = total / LOAD_SIZE;
 
         TaoLogger.logForce("TPS: "+(requestsPerSecond));
         TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Thoughput: " + throughput.get(requestsPerSecond)+" TPS");
+        TaoLogger.logForce("Thoughput: " + throughput + " TPS");
     }
 
     public static void main(String[] args) {
