@@ -266,7 +266,7 @@ public class TaoProxy implements Proxy {
     @Override
     public void onReceiveRequest(ClientRequest req) {
         // When we receive a request, we first send it to the sequencer
-        // mSequencer.onReceiveRequest(req);
+        mSequencer.onReceiveRequest(req);
 
         // We send the request to the processor, starting with the read path method
         TaoLogger.logInfo("\n\n\nGot a client request ("+req.getOpID()+") for "+req.getBlockID());
@@ -373,9 +373,6 @@ public class TaoProxy implements Proxy {
                                 clientReq.setChannel(channel);
 
                                 TaoLogger.logDebug("Proxy will handle client request #" + clientReq.getRequestID());
-
-                                // When we receive a request, we first send it to the sequencer
-                                mSequencer.onReceiveRequest(clientReq);
 
                                 // Serve the next client request
                                 Runnable serializeProcedure = () -> serveClient(channel);
