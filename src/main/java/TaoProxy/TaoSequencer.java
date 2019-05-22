@@ -116,6 +116,9 @@ public class TaoSequencer implements Sequencer {
                 // Wait until the reply for req comes back
                 byte[] check;
                 synchronized (mRequestMap) {
+                    if (mRequestMap.get(req) == null) {
+                        continue;
+                    }
                     check = mRequestMap.get(req).getData();
                     while (check == null) {
                         mRequestMap.wait();
