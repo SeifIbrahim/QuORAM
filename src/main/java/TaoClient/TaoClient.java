@@ -81,6 +81,8 @@ public class TaoClient implements Client {
     // Whether or not a load test is for an async load or not
     public static boolean ASYNC_LOAD = false;
 
+    public static ArrayList<Double> sThroughputs = new ArrayList<>();
+
     public short mClientID;
 
     public Map<Integer, Long> mBackoffTimeMap = new HashMap<>();
@@ -788,6 +790,11 @@ public class TaoClient implements Client {
                 Thread.sleep(50);
             }
 
+            long endTime = System.currentTimeMillis();
+            synchronized (sThroughputs) {
+                sThroughputs.add(LOAD_SIZE/(double)((endTime - startTime) / 1000));
+            }
+
             return 1;
         };
 
@@ -799,7 +806,12 @@ public class TaoClient implements Client {
         clientThreadExecutor.shutdown();
         clientThreadExecutor.awaitTermination(500, TimeUnit.SECONDS);
 
-        double throughput = LOAD_SIZE*concurrentClients/((System.currentTimeMillis() - startTime)/1000.0);
+        double throughputTotal = 0;
+        for (Double l : sThroughputs) {
+            throughputTotal += l;
+        }
+        double averageThroughput = throughputTotal / concurrentClients;
+
 
         TaoLogger.logForce("Ending load test");
 
@@ -808,11 +820,11 @@ public class TaoClient implements Client {
         for (Long l : sResponseTimes) {
             total += l;
         }
-        float average = total / ((float) LOAD_SIZE);
+        float average = total / ((float) concurrentClients * LOAD_SIZE);
 
         //TaoLogger.logForce("TPS: "+(requestsPerSecond));
         TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Thoughput: " + throughput);
+        TaoLogger.logForce("Thoughput: " + averageThroughput);
     }
 
     public static int doLoadTestOperationNoRep(Client client, int readOrWrite, long targetBlock, int unitToUse) {
@@ -903,6 +915,11 @@ public class TaoClient implements Client {
                 Thread.sleep(50);
             }
 
+            long endTime = System.currentTimeMillis();
+            synchronized (sThroughputs) {
+                sThroughputs.add(LOAD_SIZE/(double)((endTime - startTime) / 1000));
+            }
+
             return 1;
         };
 
@@ -919,7 +936,12 @@ public class TaoClient implements Client {
             System.exit(0);
         }
 
-        double throughput = LOAD_SIZE*concurrentClients/((System.currentTimeMillis() - startTime)/1000.0);
+        double totalThroughput = 0;
+        for (Double l : sThroughputs) {
+            System.out.println("throughput data point: "+l);
+            totalThroughput += l;
+        }
+        double averageThroughput = totalThroughput / concurrentClients;
 
         TaoLogger.logForce("Ending load test");
 
@@ -928,11 +950,11 @@ public class TaoClient implements Client {
         for (Long l : sResponseTimes) {
             total += l;
         }
-        float average = total / ((float) LOAD_SIZE);
+        float average = total / ((float) LOAD_SIZE * concurrentClients);
 
         //TaoLogger.logForce("TPS: "+(requestsPerSecond));
         TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Thoughput: " + throughput);
+        TaoLogger.logForce("Thoughput: " + averageThroughput);
     }
 
     public static void main(String[] args) {
