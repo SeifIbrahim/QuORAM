@@ -182,7 +182,7 @@ public class TaoProcessor implements Processor {
 
     @Override
     public void readPath(ClientRequest req) {
-        mProfiler.readPathStart(req);
+        //mProfiler.readPathStart(req);
 
         try {
             TaoLogger.logInfo("Starting a readPath for blockID " + req.getBlockID() + " and request #" + req.getRequestID());
@@ -232,7 +232,7 @@ public class TaoProcessor implements Processor {
             // Unlock
             requestListLock.readLock().unlock();
 
-            TaoLogger.logDebug("Doing a read for pathID " + pathID);
+            TaoLogger.logForce("Doing a read for pathID " + pathID + " and block ID "+req.getBlockID() + "("+mPositionMap.getBlockPosition(req.getBlockID())+")");
 
             // Insert request into mPathReqMultiSet to make sure that this path is not deleted before this response
             // returns from server
@@ -278,7 +278,7 @@ public class TaoProcessor implements Processor {
             // Serialize request
             byte[] requestData = proxyRequest.serialize();
 
-            mProfiler.readPathPreSend(targetServer, req);
+            //mProfiler.readPathPreSend(targetServer, req);
 
             // Claim either the dedicated channel or create a new one if the dedicated channel is already being used
             if (serverSemaphoreMap.get(targetServer).tryAcquire()) {
@@ -303,7 +303,7 @@ public class TaoProcessor implements Processor {
                             @Override
                             public void completed(Integer result, Void attachment) {
                                 // profiling
-                                mProfiler.readPathPostRecv(targetServer, req);
+                                //mProfiler.readPathPostRecv(targetServer, req);
 
                                 // Make sure we read the entire message
                                 while (messageTypeAndSize.remaining() > 0) {
@@ -350,9 +350,9 @@ public class TaoProcessor implements Processor {
                                             response.setPathID(absoluteFinalPathID);
 
                                             long serverProcessingTime = response.getProcessingTime();
-                                            mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
+                                            //mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
 
-                                            mProfiler.readPathComplete(req);
+                                            //mProfiler.readPathComplete(req);
 
                                             // Send response to proxy
                                             Runnable serializeProcedure = () -> mProxy.onReceiveResponse(req, response, fakeRead);
@@ -407,7 +407,7 @@ public class TaoProcessor implements Processor {
                                     @Override
                                     public void completed(Integer result, Void attachment) {
                                         // profiling
-                                        mProfiler.readPathPostRecv(targetServer, req);
+                                        //mProfiler.readPathPostRecv(targetServer, req);
 
                                         // Make sure we read the entire message
                                         while (messageTypeAndSize.remaining() > 0) {
@@ -458,9 +458,9 @@ public class TaoProcessor implements Processor {
                                                     response.setPathID(absoluteFinalPathID);
 
                                                     long serverProcessingTime = response.getProcessingTime();
-                                                    mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
+                                                    //mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
 
-                                                    mProfiler.readPathComplete(req);
+                                                    //mProfiler.readPathComplete(req);
 
                                                     // Send response to proxy
                                                     Runnable serializeProcedure = () -> mProxy.onReceiveResponse(req, response, fakeRead);
@@ -567,7 +567,7 @@ public class TaoProcessor implements Processor {
         mSubtree.addPath(decryptedPath, mWriteBackCounter);
 
         // Profiling
-        mProfiler.addPathTime(System.currentTimeMillis() - preAddPathTime);
+        //mProfiler.addPathTime(System.currentTimeMillis() - preAddPathTime);
 
         // Update the response map entry for this request, marking it as returned
         ResponseMapEntry responseMapEntry = mResponseMap.get(req);
@@ -646,11 +646,18 @@ public class TaoProcessor implements Processor {
                     canPutInPositionMap = true;
                 } else {
                     TaoLogger.logDebug("Read request BlockID " + req.getBlockID());
-                    // If elementDoesExist == false and the request is not a write, we will not put assign this block ID
-                    // a path in the position map
+                    // If the element doesn't exist, create an empty block
+                    // and add it to the stash
                     if (! elementDoesExist) {
-                        TaoLogger.logDebug("Read request does not exist BlockID " + req.getBlockID());
-                        canPutInPositionMap = false;
+                        Block newBlock = mPathCreator.createBlock();
+                        newBlock.setBlockID(currentRequest.getBlockID());
+                        newBlock.setData(new byte[TaoConfigs.BLOCK_SIZE]);
+                        newBlock.setTag(new Tag());
+
+                        // Add block to stash and assign random path position
+                        mStash.addBlock(newBlock);
+
+                        canPutInPositionMap = true;
                     }
                 }
 
@@ -710,7 +717,7 @@ public class TaoProcessor implements Processor {
 
             if (targetBucket != null) {
                 // If we found the bucket in the subtree, we can attempt to get the data from the block in bucket
-                TaoLogger.logDebug("Bucket containing block found in subtree");
+                TaoLogger.logForce("Bucket containing block "+blockID+" found in subtree");
                 Block data = targetBucket.getDataFromBlock(blockID);
 
                 // Check if this data is not null
@@ -727,7 +734,7 @@ public class TaoProcessor implements Processor {
                 }
             } else {
                 // If the block wasn't in the subtree, it should be in the stash
-                TaoLogger.logDebug("Cannot find in subtree");
+                TaoLogger.logForce("Cannot find block "+blockID+" in subtree");
                 Block targetBlock = mStash.getBlock(blockID);
 
                 if (targetBlock != null) {
@@ -745,7 +752,7 @@ public class TaoProcessor implements Processor {
             // If we've looped 10 times, probably can't find it
             // TODO: We should not get to this point, and thus indicates a coding error
             if (checkNum == 10) {
-                TaoLogger.logError("Cannot find data for block " + blockID);
+                TaoLogger.logError("Cannot find data for block " + blockID + " in path "+mPositionMap.getBlockPosition(blockID));
                 System.exit(1);
             }
 
@@ -804,7 +811,6 @@ public class TaoProcessor implements Processor {
             mSubtreeRWL.readLock().unlock();
             return;
         }
-
 
         // Lock every bucket on the path
         pathToFlush.lockPath();
@@ -883,6 +889,10 @@ public class TaoProcessor implements Processor {
         // Get all the blocks from the stash and blocks from this path
         ArrayList<Block> blocksToFlush = new ArrayList<>();
         blocksToFlush.addAll(mStash.getAllBlocks());
+        if (mSubtree.getPath(pathID) == null) {
+            System.out.println("Error from TaoProcessor.getHeap: path "+pathID+" is null");
+            System.exit(0);
+        }
         Bucket[] buckets = mSubtree.getPath(pathID).getBuckets();
         for (Bucket b : buckets) {
             blocksToFlush.addAll(b.getFilledBlocks());
@@ -938,7 +948,7 @@ public class TaoProcessor implements Processor {
         // Make another variable for the write back time because Java says so
         long finalWriteBackTime = writeBackTime;
 
-        mProfiler.writeBackStart(finalWriteBackTime);
+        //mProfiler.writeBackStart(finalWriteBackTime);
 
         try {
             // Create a map that will map each InetSocketAddress to a list of paths that will be written to it
@@ -1064,7 +1074,7 @@ public class TaoProcessor implements Processor {
                     try {
                         TaoLogger.logDebug("Going to do writeback for server " + serverIndexFinal);
 
-                        mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
+                        //mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
 
                         // Create channel and connect to server
                         AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
@@ -1096,7 +1106,7 @@ public class TaoProcessor implements Processor {
                             @Override
                             public void completed(Integer result, Void attachment) {
                                 // profiling
-                                mProfiler.writeBackPostRecv(serverAddr, finalWriteBackTime);
+                                //mProfiler.writeBackPostRecv(serverAddr, finalWriteBackTime);
 
                                 // Flip the byte buffer for reading
                                 messageTypeAndSize.flip();
@@ -1137,7 +1147,7 @@ public class TaoProcessor implements Processor {
                                             response.initFromSerialized(serialized);
 
                                             long serverProcessingTime = response.getProcessingTime();
-                                            mProfiler.writeBackServerProcessingTime(serverAddr, finalWriteBackTime, serverProcessingTime);
+                                            //mProfiler.writeBackServerProcessingTime(serverAddr, finalWriteBackTime, serverProcessingTime);
 
                                             // Check to see if the write succeeded or not
                                             if (response.getWriteStatus()) {
@@ -1158,7 +1168,7 @@ public class TaoProcessor implements Processor {
                                                     // If all the servers have successfully responded, we can delete nodes from subtree
                                                     if (allReturn) {
 
-                                                        mProfiler.writeBackComplete(finalWriteBackTime);
+                                                        //mProfiler.writeBackComplete(finalWriteBackTime);
 
                                                         // Iterate through every path that was written, check if there are any nodes
                                                         // we can delete
@@ -1170,7 +1180,9 @@ public class TaoProcessor implements Processor {
                                                             for (Long l : mPathReqMultiSet.elementSet()) {
                                                                 set.add(l);
                                                             }
+                                                            mSubtreeRWL.writeLock().lock();
                                                             mSubtree.deleteNodes(pathID, finalWriteBackTime, set);
+                                                            mSubtreeRWL.writeLock().unlock();
                                                         }
                                                     }
                                                 }

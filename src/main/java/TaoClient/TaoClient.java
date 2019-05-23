@@ -546,7 +546,7 @@ public class TaoClient implements Client {
      */
     protected ClientRequest makeRequest(int type, long blockID, byte[] data, Tag tag, OperationID opID, List<Object> extras) {
         // Keep track of requestID and increment it
-        long requestID = mRequestID.getAndAdd(1);
+        long requestID = 16 * mRequestID.getAndAdd(1) + mClientID;
 
         // Create client request
         ClientRequest request = mMessageCreator.createClientRequest();
