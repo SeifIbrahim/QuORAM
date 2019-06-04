@@ -750,12 +750,14 @@ public class TaoClient implements Client {
         return 1;
     }
 
-    public static void loadTest() throws InterruptedException {
+    public static void loadTest(int loadTestType) throws InterruptedException {
         int concurrentClients = 2;
         // Length of load test in ms
         int loadTestLength = 1000 * 60 * 2;
         // Number of operations to do for warmup
         int warmUpOperations = 100;
+        // Unit to use in no-replication load test
+        int unitToUse = 0;
 
         Callable<Integer> loadTestClientThread = () -> {
             TaoClient client = new TaoClient((short)-1); 
@@ -772,7 +774,11 @@ public class TaoClient implements Client {
                 int readOrWrite = r.nextInt(2);
                 long targetBlock = r.nextLong()%totalBlocks;
                 long opStartTime = System.currentTimeMillis();
-                doLoadTestOperation(client, readOrWrite, targetBlock);
+                if (loadTestType == 0) {
+                    doLoadTestOperation(client, readOrWrite, targetBlock);
+                } else {
+                    doLoadTestOperationNoRep(client, readOrWrite, targetBlock, unitToUse);
+                }
                 operationCount++;
                 long latency = System.currentTimeMillis() - opStartTime;
                 if (latency < 200) {
@@ -787,7 +793,6 @@ public class TaoClient implements Client {
 
             return 1;
         };
-
 
         // Warm up the system
         TaoClient warmUpClient = new TaoClient((short)-1);
@@ -833,7 +838,7 @@ public class TaoClient implements Client {
         for (Long l : sResponseTimes) {
             total += l;
         }
-        float average = total / ((float) concurrentClients * LOAD_SIZE);
+        float average = total / sResponseTimes.size();
 
         //TaoLogger.logForce("TPS: "+(requestsPerSecond));
         TaoLogger.logForce("Average response time was " + average + " ms");
@@ -884,91 +889,6 @@ public class TaoClient implements Client {
         return 1;
     }
 
-
-    public static void loadTestNoReplication() {
-        int unitToUse = 0;
-        int concurrentClients = 2;
-
-        Callable<Integer> loadTestClientThread = () -> {
-            TaoClient client = new TaoClient((short)-1); 
-
-            // Random number generator
-            SecureRandom r = new SecureRandom();
-
-            long totalNodes = (long)Math.pow(2,TaoConfigs.TREE_HEIGHT + 1) - 1;
-            long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
-
-            // Do LOAD_SIZE/10 random operations for warmup
-            PrimitiveIterator.OfLong blockIDGenerator = r.longs(LOAD_SIZE/10, 0, totalBlocks - 1).iterator();
-            for (int i = 0; i < LOAD_SIZE/10; i++) {
-                long blockID = blockIDGenerator.next();
-                int readOrWrite = r.nextInt(2);
-
-                if (readOrWrite == 0) {
-                    client.readAsync(blockID, unitToUse, new OperationID()).get();
-                } else {
-                    byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
-                    Arrays.fill(dataToWrite, (byte) blockID);
-
-                    client.writeAsync(blockID, dataToWrite, new Tag(), unitToUse, new OperationID()).get();
-                }
-            }
-
-            // Do load test
-            blockIDGenerator = r.longs(LOAD_SIZE, 0, totalBlocks - 1).iterator();
-
-            TaoLogger.logForce("Going to start load test");
-            
-            long startTime = System.currentTimeMillis();
-            for (int i = 0; i < LOAD_SIZE; i++) {
-                int readOrWrite = r.nextInt(2);
-                long targetBlock = blockIDGenerator.next();
-                long opStartTime = System.currentTimeMillis();
-                doLoadTestOperationNoRep(client, readOrWrite, targetBlock, unitToUse);
-                Thread.sleep(50);
-            }
-
-            long endTime = System.currentTimeMillis();
-            synchronized (sThroughputs) {
-                sThroughputs.add(LOAD_SIZE/(double)((endTime - startTime) / 1000));
-            }
-
-            return 1;
-        };
-
-        ExecutorService clientThreadExecutor = Executors.newFixedThreadPool(5, Executors.defaultThreadFactory());
-        long startTime = System.currentTimeMillis();
-        for (int i = 0; i < concurrentClients; i++) {
-            clientThreadExecutor.submit(loadTestClientThread);
-        }
-        clientThreadExecutor.shutdown();
-        try {
-            clientThreadExecutor.awaitTermination(500, TimeUnit.SECONDS);
-        } catch (Exception e) {
-            e.printStackTrace();
-            System.exit(0);
-        }
-
-        double totalThroughput = 0;
-        for (Double l : sThroughputs) {
-            System.out.println("throughput data point: "+l);
-            totalThroughput += l;
-        }
-        double averageThroughput = totalThroughput / concurrentClients;
-
-        TaoLogger.logForce("Ending load test");
-
-        // Get average response time
-        long total = 0;
-        for (Long l : sResponseTimes) {
-            total += l;
-        }
-        float average = total / ((float) LOAD_SIZE * concurrentClients);
-
-        //TaoLogger.logForce("TPS: "+(requestsPerSecond));
-        TaoLogger.logForce("Average response time was " + average + " ms");
-        TaoLogger.logForce("Thoughput: " + averageThroughput);
-    }
 
     public static void main(String[] args) {
         try {
@@ -1041,11 +961,11 @@ public class TaoClient implements Client {
                 NUM_DATA_ITEMS = Integer.parseInt(data_set_size);
 
                 if (load_test_type.equals("synchronous")) {
-                    loadTest();
+                    loadTest(0);
                 }
 
                 if (load_test_type.equals("no_rep")) {
-                    loadTestNoReplication();
+                    loadTest(1);
                 }
 
                 System.exit(1);
