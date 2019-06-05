@@ -801,25 +801,19 @@ public class TaoProcessor implements Processor {
 
         // Due to multiple threads moving blocks around, we need to run this in a loop
         while (true) {
-            // Check if block is in subtree
-            Bucket targetBucket = mSubtree.getBucketWithBlock(blockID);
-            if (targetBucket != null) {
-                // If the bucket was found, we modify a block
-                if (targetBucket.modifyBlock(blockID, data, tag)) {
-                    return;
-                }
-            } else {
-                // If we cannot find a bucket with the block, we check for the block in the stash
-                Block targetBlock = mStash.getBlock(blockID);
+            // Check for the block in the stash
+            Block targetBlock = mStash.getBlock(blockID);
 
-                // If the block was found in the stash, we set the data for the block
-                if (targetBlock != null) {
-                    if (tag.compareTo(targetBlock.getTag()) >= 0) {
-                        targetBlock.setData(data);
-                        targetBlock.setTag(tag);
-                    }
-                    return;
+            // If the block was found in the stash, we set the data for the block
+            if (targetBlock != null) {
+                if (tag.compareTo(targetBlock.getTag()) >= 0) {
+                    targetBlock.setData(data);
+                    targetBlock.setTag(tag);
                 }
+                return;
+            } else {
+                System.out.println("Target block not in stash!");
+                System.exit(0);
             }
         }
     }
