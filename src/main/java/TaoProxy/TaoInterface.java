@@ -6,6 +6,7 @@ import Configuration.TaoConfigs;
 
 import com.google.common.primitives.Bytes;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -30,11 +31,11 @@ public class TaoInterface {
 
     protected Sequencer mSequencer;
 
-    protected Processor mProcessor;
+    protected TaoProcessor mProcessor;
 
     protected MessageCreator mMessageCreator;
 
-    public TaoInterface(Sequencer s, Processor p, MessageCreator messageCreator) {
+    public TaoInterface(Sequencer s, TaoProcessor p, MessageCreator messageCreator) {
         mSequencer = s;
         mProcessor = p;
         mMessageCreator = messageCreator;
@@ -74,6 +75,20 @@ public class TaoInterface {
             System.out.println("There are now "+mBlocksInCache.get(blockID)+" instances of block " + blockID + " in the incomplete cache");
             cacheOpsInOrder.add(opID);
             cacheLock.writeLock().unlock();
+
+            // If the block we just added to the incomplete cache exists in the subtree,
+            // move it to the stash
+            Bucket targetBucket = mProcessor.mSubtree.getBucketWithBlock(blockID);
+            if (targetBucket != null) {
+                targetBucket.lockBucket();
+                HashSet<Long> blockIDToRemove = new HashSet<>();
+                blockIDToRemove.add(blockID);
+                Block b = targetBucket.removeBlocksInSet(blockIDToRemove).get(0);
+                mProcessor.mSubtree.removeBlock(blockID);
+                targetBucket.unlockBucket();
+                mProcessor.mStash.addBlock(b);
+                System.out.println("Moved block " + blockID + "from subtree to stash");
+            }
 
             mSequencer.onReceiveRequest(clientReq);
         } else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {

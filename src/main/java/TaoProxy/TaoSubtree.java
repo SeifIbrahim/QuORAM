@@ -501,4 +501,8 @@ public class TaoSubtree implements Subtree {
             b.print();
         }
     }
+
+    public void removeBlock(long blockID) {
+        mBlockMap.remove(blockID);
+    }
 }

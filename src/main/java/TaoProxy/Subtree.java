@@ -56,4 +56,6 @@ public interface Subtree {
      * @brief Used for debugging, prints subtree contents
      */
     void printSubtree();
+
+    void removeBlock(long blockID);
 }

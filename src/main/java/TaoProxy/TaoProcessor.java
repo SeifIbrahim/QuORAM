@@ -23,7 +23,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class TaoProcessor implements Processor {
     // Stash to hold blocks
-    protected Stash mStash;
+    public Stash mStash;
 
     // Map that maps a block ID to a list of requests for that block ID
     // Used so that we know when to issue fake reads (fake reads are issued if the list for a requestID is non empty)
@@ -47,7 +47,7 @@ public class TaoProcessor implements Processor {
     protected Multiset<Long> mPathReqMultiSet;
 
     // Subtree
-    protected Subtree mSubtree;
+    public Subtree mSubtree;
 
     // Counter used to know when we should writeback
     protected long mWriteBackCounter;
@@ -799,22 +799,19 @@ public class TaoProcessor implements Processor {
             return;
         }
 
-        // Due to multiple threads moving blocks around, we need to run this in a loop
-        while (true) {
-            // Check for the block in the stash
-            Block targetBlock = mStash.getBlock(blockID);
+        // Check for the block in the stash
+        Block targetBlock = mStash.getBlock(blockID);
 
-            // If the block was found in the stash, we set the data for the block
-            if (targetBlock != null) {
-                if (tag.compareTo(targetBlock.getTag()) >= 0) {
-                    targetBlock.setData(data);
-                    targetBlock.setTag(tag);
-                }
-                return;
-            } else {
-                System.out.println("Target block not in stash!");
-                System.exit(0);
+        // If the block was found in the stash, we set the data for the block
+        if (targetBlock != null) {
+            if (tag.compareTo(targetBlock.getTag()) >= 0) {
+                targetBlock.setData(data);
+                targetBlock.setTag(tag);
             }
+            return;
+        } else {
+            System.out.println("Target block " + blockID + " not in stash!");
+            System.exit(0);
         }
     }
 
@@ -913,13 +910,6 @@ public class TaoProcessor implements Processor {
         ArrayList<Block> blocksToFlush = new ArrayList<>();
         blocksToFlush.addAll(mStash.getAllBlocks());
 
-        for (int i = 0; i < blocksToFlush.size(); i++) {
-            if (mInterface.mBlocksInCache.keySet().contains(blocksToFlush.get(i))) {
-                blocksToFlush.remove(i);
-                i--;
-            }
-        }
-
         if (mSubtree.getPath(pathID) == null) {
             System.out.println("Error from TaoProcessor.getHeap: path "+pathID+" is null");
             System.exit(0);
@@ -936,6 +926,13 @@ public class TaoProcessor implements Processor {
         blocksToFlush.clear();
         blocksToFlush.addAll(hs);
         blocksToFlush = Lists.newArrayList(Sets.newHashSet(blocksToFlush));
+
+        for (int i = 0; i < blocksToFlush.size(); i++) {
+            if (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
+                blocksToFlush.remove(i);
+                i--;
+            }
+        }
 
         // Create heap based on the block's path ID when compared to the target path ID
         PriorityQueue<Block> blockHeap = new PriorityQueue<>(TaoConfigs.BUCKET_SIZE, new BlockPathComparator(pathID, mPositionMap));
