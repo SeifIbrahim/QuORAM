@@ -910,6 +910,13 @@ public class TaoProcessor implements Processor {
         ArrayList<Block> blocksToFlush = new ArrayList<>();
         blocksToFlush.addAll(mStash.getAllBlocks());
 
+        for (int i = 0; i < blocksToFlush.size(); i++) {
+            if (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
+                blocksToFlush.remove(i);
+                i--;
+            }
+        }
+
         if (mSubtree.getPath(pathID) == null) {
             System.out.println("Error from TaoProcessor.getHeap: path "+pathID+" is null");
             System.exit(0);
@@ -926,13 +933,6 @@ public class TaoProcessor implements Processor {
         blocksToFlush.clear();
         blocksToFlush.addAll(hs);
         blocksToFlush = Lists.newArrayList(Sets.newHashSet(blocksToFlush));
-
-        for (int i = 0; i < blocksToFlush.size(); i++) {
-            if (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
-                blocksToFlush.remove(i);
-                i--;
-            }
-        }
 
         // Create heap based on the block's path ID when compared to the target path ID
         PriorityQueue<Block> blockHeap = new PriorityQueue<>(TaoConfigs.BUCKET_SIZE, new BlockPathComparator(pathID, mPositionMap));
