@@ -21,7 +21,7 @@ public class TaoServerTest {
     @Test
     public void testReadWritePath() {
         // Create server
-        TaoServer server = new TaoServer(new TaoMessageCreator());
+        TaoServer server = new TaoServer(new TaoMessageCreator(),0);
         TaoCryptoUtil cryptoUtil = new TaoCryptoUtil();
 
         // Create empty path
