@@ -19,6 +19,7 @@ public class BlockPathComparatorTest {
         long targetPath = 0;
         TaoPositionMap map = new TaoPositionMap();
         Integer[] paths = new Integer[] {0, 8, 2, 1, 4};
+        int old_tree_height = TaoConfigs.TREE_HEIGHT;
         TaoConfigs.TREE_HEIGHT = 4;
         ArrayList<Block> blocks = new ArrayList<>(paths.length);
 
@@ -37,5 +38,7 @@ public class BlockPathComparatorTest {
             assertEquals((long) answer[i], blockHeap.poll().getBlockID());
             i++;
         }
+
+        TaoConfigs.TREE_HEIGHT = old_tree_height;
     }
 }
