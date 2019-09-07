@@ -69,17 +69,19 @@ public class TaoClient implements Client {
     // List of bytes used for writing blocks as well as comparing the results of returned block data
     public static ArrayList<byte[]> sListOfBytes = new ArrayList<>();
 
-    // Map used during async load tests to map a blockID to the bytes that it should be compared to upon proxy reply
-    public static Map<Long, Integer> sReturnMap = new HashMap<>();
+    // Number of concurrent clients in load test
+    public static int CONCURRENT_CLIENTS = 1;
 
-    // Number of operations in load test
-    public static int LOAD_SIZE = 1000;
+    // Load test length in ms
+    public static int LOAD_TEST_LENGTH = 1000 * 2 * 60;
 
-    // Number of unique data items in load test
-    public static int NUM_DATA_ITEMS = 1000;
+    // The number of warmup operations to perform before beginning the load test
+    public static int WARMUP_OPERATIONS = 100;
 
-    // Whether or not a load test is for an async load or not
-    public static boolean ASYNC_LOAD = false;
+    // The unit to use when performing a no-replication load test
+    public static int UNIT_TO_USE = 0;
+
+    public static String LOAD_TEST_TYPE = "replicated";
 
     public static ArrayList<Double> sThroughputs = new ArrayList<>();
 
@@ -289,25 +291,6 @@ public class TaoClient implements Client {
                             synchronized (clientAnswer) {
                                 clientAnswer.notifyAll();
                                 mResponseWaitMap.remove(clientAnswer.getClientRequestID());
-
-                                if (ASYNC_LOAD) {
-
-                                    // If this is an async load, we need to notify the test that we are done
-                                    if (clientAnswer.getClientRequestID() == (NUM_DATA_ITEMS + LOAD_SIZE - 1)) {
-                                        synchronized (sAsycLoadLock) {
-                                            sAsycLoadLock.notifyAll();
-                                        }
-                                    }
-
-                                    // Check for correctness
-                                    if (sReturnMap.get(clientAnswer.getClientRequestID()) != null) {
-                                        if (!Arrays.equals(sListOfBytes.get(sReturnMap.get(clientAnswer.getClientRequestID())), clientAnswer.getReturnData())) {
-                                            TaoLogger.logError("Read failed for block " + sReturnMap.get(clientAnswer.getClientRequestID()));
-                                            System.exit(1);
-                                        }
-                                    }
-                                } else {
-                                }
 
                                 processProxyReplies(unitID);
                             }
@@ -573,9 +556,6 @@ public class TaoClient implements Client {
 
         // Set additional data depending on message type
         if (type == MessageTypes.CLIENT_READ_REQUEST) {
-            if (ASYNC_LOAD) {
-                sReturnMap.put(requestID, (int) blockID - 1);
-            }
             request.setData(new byte[TaoConfigs.BLOCK_SIZE]);
         } else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
             request.setData(data);
@@ -754,15 +734,8 @@ public class TaoClient implements Client {
         return 1;
     }
 
-    public static void loadTest(int loadTestType) throws InterruptedException {
-        int concurrentClients = 2;
-        // Length of load test in ms
-        int loadTestLength = 1000 * 60 * 2;
-        // Number of operations to do for warmup
-        int warmUpOperations = 100;
-        // Unit to use in no-replication load test
-        int unitToUse = 0;
 
+    public static void loadTest(int loadTestType, int unitToUse, int concurrentClients, int loadTestLength, int warmupOperations) throws InterruptedException {
         Callable<Integer> loadTestClientThread = () -> {
             TaoClient client = new TaoClient((short)-1); 
 
@@ -803,9 +776,9 @@ public class TaoClient implements Client {
         SecureRandom r = new SecureRandom();
         long totalNodes = (long)Math.pow(2,TaoConfigs.TREE_HEIGHT + 1) - 1;
         long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
-        PrimitiveIterator.OfLong blockIDGenerator = r.longs(warmUpOperations, 0, totalBlocks - 1).iterator();
+        PrimitiveIterator.OfLong blockIDGenerator = r.longs(warmupOperations, 0, totalBlocks - 1).iterator();
 
-        for (int i = 0; i < warmUpOperations; i++) {
+        for (int i = 0; i < warmupOperations; i++) {
             long blockID = blockIDGenerator.next();
             int readOrWrite = r.nextInt(2);
 
@@ -953,24 +926,22 @@ public class TaoClient implements Client {
                     }
                 }
             } else {
-                // Determine if we are doing a load test with synchronous operations, or asynchronous
-                String load_test_type = options.getOrDefault("load_test_type", "synchronous");
+                // The type of load test
+                String loadTestType = options.getOrDefault("load_test_type", LOAD_TEST_TYPE);
 
-                // Determine the amount of operations in the load test
-                String load_size = options.getOrDefault("load_size", Integer.toString(LOAD_SIZE));
-                LOAD_SIZE = Integer.parseInt(load_size);
+                // Determine number of concurrent clients to run during the load test
+                int concurrentClients = Integer.parseInt(options.getOrDefault("clients", Integer.toString(CONCURRENT_CLIENTS)));
 
-                // Determine the amount of unique data items that can be operated on
-                String data_set_size = options.getOrDefault("data_set_size", Integer.toString(NUM_DATA_ITEMS));
-                NUM_DATA_ITEMS = Integer.parseInt(data_set_size);
+                // The length of the load test (in ms)
+                int loadTestLength = Integer.parseInt(options.getOrDefault("load_test_length", Integer.toString(LOAD_TEST_LENGTH)));
 
-                if (load_test_type.equals("synchronous")) {
-                    loadTest(0);
-                }
+                // The number of warmup operations to perform before starting the load test
+                int warmupOperations = Integer.parseInt(options.getOrDefault("warmup_operations", Integer.toString(WARMUP_OPERATIONS)));
 
-                if (load_test_type.equals("no_rep")) {
-                    loadTest(1);
-                }
+                // The unit to use when doing a no-replication load test
+                int unitToUse = Integer.parseInt(options.getOrDefault("warmup_operations", Integer.toString(UNIT_TO_USE)));
+
+                loadTest(loadTestType.equals("replicated")? 0 : 1, unitToUse, concurrentClients, loadTestLength, warmupOperations);
 
                 System.exit(1);
             }
