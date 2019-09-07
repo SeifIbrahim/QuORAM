@@ -51,4 +51,14 @@ num_storage_servers=1
 # The amout of ORAM units
 num_oram_units=3
 
+<<<<<<< HEAD
+=======
+# The maximum number of in-progress operations that can be stored
+# in the incomplete cache
+incomplete_cache_limit = 100
+
+# The maximum client ID
+max_client_id = 90
+
+>>>>>>> 7c920a2... Document mechanism for ensuring unique request IDs
 

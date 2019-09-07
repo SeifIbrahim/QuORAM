@@ -83,6 +83,8 @@ public class TaoConfigs {
 
     public static List<Unit> ORAM_UNITS = new ArrayList<>();
 
+    public static int MAX_CLIENT_ID;
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -139,6 +141,9 @@ public class TaoConfigs {
 
                 String num_oram_units = properties.getProperty("num_oram_units");
                 int num_units = Integer.parseInt(num_oram_units);
+
+                String max_client_id = properties.getProperty("max_client_id");
+                MAX_CLIENT_ID = Integer.parseInt(max_client_id);
 
                 for (int i = 0; i < num_units; i++) {
                     String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));
