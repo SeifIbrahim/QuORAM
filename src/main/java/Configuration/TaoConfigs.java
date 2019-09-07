@@ -85,6 +85,8 @@ public class TaoConfigs {
 
     public static int INCOMPLETE_CACHE_LIMIT;
 
+    public static int MAX_CLIENT_ID;
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -144,6 +146,9 @@ public class TaoConfigs {
 
                 String num_cache_limit = properties.getProperty("incomplete_cache_limit");
                 INCOMPLETE_CACHE_LIMIT = Integer.parseInt(num_cache_limit);
+
+                String max_client_id = properties.getProperty("max_client_id");
+                MAX_CLIENT_ID = Integer.parseInt(max_client_id);
 
                 for (int i = 0; i < num_units; i++) {
                     String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));

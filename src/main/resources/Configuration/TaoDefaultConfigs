@@ -55,4 +55,7 @@ num_oram_units=3
 # in the incomplete cache
 incomplete_cache_limit = 100
 
+# The maximum client ID
+max_client_id = 90
+
 
