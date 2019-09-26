@@ -43,7 +43,7 @@ block_meta_data_size=18
 iv_size=16
 
 # The minimum desired size for storage in MB
-min_server_size=10
+min_server_size=100
 
 # The amount of storage servers per ORAM unit
 num_storage_servers=1
@@ -55,7 +55,7 @@ num_oram_units=3
 # in the incomplete cache
 incomplete_cache_limit = 100
 
-# The maximum client ID
+# The maximum client ID (same as the maximum number of clients)
 max_client_id = 90
 
 

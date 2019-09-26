@@ -739,10 +739,6 @@ public class TaoClient implements Client {
                 long targetBlock = r.nextLong()%totalBlocks;
                 long opStartTime = System.currentTimeMillis();
                 doLoadTestOperation(client, readOrWrite, targetBlock);
-                long latency = System.currentTimeMillis() - opStartTime;
-                if (latency < 200) {
-                        Thread.sleep(200 - latency);
-                }
                 operationCount++;
             }
 
