@@ -757,10 +757,6 @@ public class TaoClient implements Client {
                     doLoadTestOperationNoRep(client, readOrWrite, targetBlock, unitToUse);
                 }
                 operationCount++;
-                long latency = System.currentTimeMillis() - opStartTime;
-                if (latency < 200) {
-                        Thread.sleep(200 - latency);
-                }
             }
 
             long endTime = System.currentTimeMillis();
@@ -939,7 +935,7 @@ public class TaoClient implements Client {
                 int warmupOperations = Integer.parseInt(options.getOrDefault("warmup_operations", Integer.toString(WARMUP_OPERATIONS)));
 
                 // The unit to use when doing a no-replication load test
-                int unitToUse = Integer.parseInt(options.getOrDefault("warmup_operations", Integer.toString(UNIT_TO_USE)));
+                int unitToUse = Integer.parseInt(options.getOrDefault("unit_to_use", Integer.toString(UNIT_TO_USE)));
 
                 loadTest(loadTestType.equals("replicated")? 0 : 1, unitToUse, concurrentClients, loadTestLength, warmupOperations);
 

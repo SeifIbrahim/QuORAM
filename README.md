@@ -1,7 +1,7 @@
 
 Replicated TaoStore
 ========
-NOTE FOR PEOPLE RUNNING EXPERIMENTS: This branch (master) is used to get load test data for efficient replication. The naive_replication branch is used to get load test data for naive replication _and_ no replication.
+NOTE FOR PEOPLE RUNNING EXPERIMENTS: This branch (naive_solution) is used to get load test data for naive replication _and_ no replication.
 
 This is a modification of TaoStore that allows it to atomically replicate data across multiple machines. The system consists of three layers: TaoClient, TaoProxy, and TaoServer. Together, a pair of TaoProxy and TaoServer forms a _replica unit_. These pairs are specified at start-up by assigning each TaoProxy and TaoServer a unit ID. Each TaoProxy can only contact its corresponding TaoServer, and vice versa. A TaoServer is a storage server which stores data in a tree, and a TaoProxy writes to the TaoServer on behalf of TaoClients. Any TaoClient can contact any TaoProxy.
 
@@ -52,6 +52,12 @@ To run:
  * --load_test_length
     * Length in milliseconds of load test
     * Default is 2 minutes
+ * --load_test_type
+    * Type of load test: "replicated" or "nonreplicated"
+    * Default is "replicated"
+ * --unit_to_use
+    * Which unit to use for a nonreplicated load test
+    * Default is 0
  * --id
     * Client ID
     * Only used in interactive mode.
