@@ -1,0 +1,1 @@
+java -cp ../lib/commons-math3-3.6.1.jar:../lib/guava-19.0.jar:TaoServer-1.0-SNAPSHOT.jar TaoClient.TaoClient --runType load_test --clients $1 --load_test_length $2 --rwRation $3 --zipfExp $4 --warmup_operations $5
