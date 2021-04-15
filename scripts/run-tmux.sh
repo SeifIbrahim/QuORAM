@@ -45,7 +45,7 @@ tmux kill-session -t $PROXY_SESSION > /dev/null 2>&1 || true
 tmux kill-session -t $CLIENT_SESSION > /dev/null 2>&1 || true
 #fi
 
-(cd target/ &&
+(cd target &&
 
 # launch servers
 _tmux_process_command $SERVER_SESSION 0 'C-c' "java -cp ../lib/commons-math3-3.6.1.jar:../lib/guava-19.0.jar:TaoServer-1.0-SNAPSHOT.jar TaoServer.TaoServer --unit 0"

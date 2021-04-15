@@ -780,6 +780,8 @@ public class TaoClient implements Client {
 			}
 		}
 
+		TaoLogger.logForce("Beginning load test");
+
 		// Begin actual load test
 		ExecutorService clientThreadExecutor = Executors.newFixedThreadPool(concurrentClients,
 				Executors.defaultThreadFactory());
@@ -788,7 +790,10 @@ public class TaoClient implements Client {
 			clientThreadExecutor.submit(loadTestClientThread);
 		}
 		clientThreadExecutor.shutdown();
-		clientThreadExecutor.awaitTermination(loadTestLength * 2, TimeUnit.MILLISECONDS);
+		boolean terminated = clientThreadExecutor.awaitTermination(loadTestLength * 2, TimeUnit.MILLISECONDS);
+		if (!terminated) {
+			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
+		}
 
 		double throughputTotal = 0;
 		for (Double l : sThroughputs) {
