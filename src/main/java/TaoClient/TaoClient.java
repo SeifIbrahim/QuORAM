@@ -414,7 +414,7 @@ public class TaoClient implements Client {
 		// Wait for a read quorum (here a simple majority) of responses
 		int readResponseCount = 0;
 		HashSet<Integer> writeResponses = new HashSet<Integer>();
-		boolean firstWrite = false;
+		boolean firstWrite = true;
 		while (writeResponses.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
 			if (!firstWrite) {
 				TaoLogger.logForce("First write failed, retrying...");
