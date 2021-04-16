@@ -402,6 +402,7 @@ public class TaoClient implements Client {
 		// Broadcast read(blockID) to all ORAM units
 		Map<Integer, Long> timeStart = new HashMap<>();
 		Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
+		Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
 		for (int i : quorum) {
 			readResponsesWaiting.put(i, readAsync(blockID, i, opID));
 			timeStart.put(i, System.currentTimeMillis());
@@ -411,102 +412,114 @@ public class TaoClient implements Client {
 		Tag tag = null;
 
 		// Wait for a read quorum (here a simple majority) of responses
-		int responseCount = 0;
-		while (responseCount < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
-			while (quorum.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
-				System.out.println("Adding unit to quorum");
-				int addedUnit = selectUnit(quorum);
-				quorum.add(addedUnit);
-				readResponsesWaiting.put(addedUnit, readAsync(blockID, addedUnit, opID));
-				timeStart.put(addedUnit, System.currentTimeMillis());
+		int readResponseCount = 0;
+		HashSet<Integer> writeResponses = new HashSet<Integer>();
+		boolean firstWrite = false;
+		while (writeResponses.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
+			if (!firstWrite) {
+				TaoLogger.logForce("First write failed, retrying...");
+			}
+			while (readResponseCount < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
+				// refill the quorum
+				while (quorum.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
+					System.out.println("Adding unit to quorum");
+					int addedUnit = selectUnit(quorum);
+					quorum.add(addedUnit);
+					readResponsesWaiting.put(addedUnit, readAsync(blockID, addedUnit, opID));
+					timeStart.put(addedUnit, System.currentTimeMillis());
+				}
+
+				Iterator it = readResponsesWaiting.entrySet().iterator();
+				while (it.hasNext()) {
+					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
+					if (entry.getValue().isDone()) {
+						try {
+							System.out.println("From proxy " + entry.getKey() + ": got value "
+									+ entry.getValue().get().getReturnData()[0] + " with tag "
+									+ entry.getValue().get().getReturnTag());
+							byte[] val = entry.getValue().get().getReturnData();
+							Tag responseTag = entry.getValue().get().getReturnTag();
+
+							// Set writeback value to the value with the greatest tag
+							if (tag == null || responseTag.compareTo(tag) >= 0) {
+								writebackVal = val;
+								tag = responseTag;
+							}
+
+							it.remove();
+							readResponseCount++;
+
+							markResponsive(entry.getKey());
+						} catch (Exception e) {
+							System.out.println(e);
+							e.printStackTrace();
+						}
+					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 2000) {
+						entry.getValue().cancel(true);
+						System.out.println("Timed out during read waiting for proxy " + entry.getKey());
+						it.remove();
+
+						// Remove unit from quorum and mark unresponsive
+						quorum.remove(entry.getKey());
+						markUnresponsive(entry.getKey());
+					}
+				}
 			}
 
+			// Cancel all pending reads, so that threads are not wasted
 			Iterator it = readResponsesWaiting.entrySet().iterator();
 			while (it.hasNext()) {
 				Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
-				if (entry.getValue().isDone()) {
-					try {
-						System.out.println("From proxy " + entry.getKey() + ": got value "
-								+ entry.getValue().get().getReturnData()[0] + " with tag "
-								+ entry.getValue().get().getReturnTag());
-						byte[] val = entry.getValue().get().getReturnData();
-						Tag responseTag = entry.getValue().get().getReturnTag();
+				entry.getValue().cancel(true);
+				it.remove();
+			}
 
-						// Set writeback value to the value with the greatest tag
-						if (tag == null || responseTag.compareTo(tag) >= 0) {
-							writebackVal = val;
-							tag = responseTag;
+			// If write, set writeback value to client's value
+			// and increment tag
+			if (isWrite && firstWrite) {
+				writebackVal = data;
+				tag.seqNum = tag.seqNum + 1;
+				tag.clientID = mClientID;
+			}
+
+			// write to quorum members that we haven't acknowledged a response from
+			for (int i : quorum) {
+				if (!writeResponses.contains(i)) {
+					writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i, opID));
+					timeStart.put(i, System.currentTimeMillis());
+				}
+			}
+
+			// Wait for a write quorum of acks (here a simple majority)
+			while (!writeResponsesWaiting.isEmpty()) {
+				it = writeResponsesWaiting.entrySet().iterator();
+				while (it.hasNext()) {
+					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
+					if (entry.getValue().isDone()) {
+						try {
+							System.out.println("Got ack from proxy " + entry.getKey());
+							it.remove();
+							writeResponses.add(entry.getKey());
+						} catch (Exception e) {
+							System.out.println(e);
 						}
+					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
+						entry.getValue().cancel(true);
+						System.out.println("Timed out during write waiting for proxy " + entry.getKey());
 
 						it.remove();
-						responseCount++;
 
-						markResponsive(entry.getKey());
-					} catch (Exception e) {
-						System.out.println(e);
-						e.printStackTrace();
+						// Remove unit from quorum and mark unresponsive
+						quorum.remove(entry.getKey());
+						markUnresponsive(entry.getKey());
 					}
-				} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 2000) {
-					entry.getValue().cancel(true);
-					System.out.println("Timed out waiting for proxy " + entry.getKey());
-					it.remove();
-
-					// Remove unit from quorum and mark unresponsive
-					quorum.remove(entry.getKey());
-					markUnresponsive(entry.getKey());
 				}
 			}
-		}
-
-		// Cancel all pending reads, so that threads are not wasted
-		Iterator it = readResponsesWaiting.entrySet().iterator();
-		while (it.hasNext()) {
-			Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
-			entry.getValue().cancel(true);
-			it.remove();
-		}
-
-		// If write, set writeback value to client's value
-		// and increment tag
-		if (isWrite) {
-			writebackVal = data;
-			tag.seqNum = tag.seqNum + 1;
-			tag.clientID = mClientID;
-		}
-
-		// Broadcast write(blockID, writeback value, writeback tag)
-		// to all ORAM units
-		Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
-		for (int i : quorum) {
-			writeResponsesWaiting.put(i, writeAsync(blockID, writebackVal, tag, i, opID));
-			timeStart.put(i, System.currentTimeMillis());
-		}
-
-		// Wait for a write quorum of acks (here a simple majority)
-		responseCount = 0;
-		while (responseCount < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
-			it = writeResponsesWaiting.entrySet().iterator();
-			while (it.hasNext()) {
-				Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
-				if (entry.getValue().isDone()) {
-					try {
-						System.out.println("Got ack from proxy " + entry.getKey());
-						it.remove();
-						responseCount++;
-					} catch (Exception e) {
-						System.out.println(e);
-					}
-				} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
-					entry.getValue().cancel(true);
-					System.out.println("Timed out waiting for proxy " + entry.getKey());
-
-					return null;
-				}
-			}
+			firstWrite = false;
 		}
 
 		// Cancel all pending writes, so that threads are not wasted
-		it = writeResponsesWaiting.entrySet().iterator();
+		Iterator it = writeResponsesWaiting.entrySet().iterator();
 		while (it.hasNext()) {
 			Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
 			entry.getValue().cancel(true);
