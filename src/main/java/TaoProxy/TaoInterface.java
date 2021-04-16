@@ -44,7 +44,7 @@ public class TaoInterface {
     protected void removeOpFromCache(OperationID opID) {
         Long blockID = mIncompleteCache.get(opID);
         mIncompleteCache.remove(opID, blockID);
-        System.out.println("Removed entry from cache");
+        TaoLogger.logInfo("Removed entry from cache");
         mBlocksInCache.put(blockID, mBlocksInCache.getOrDefault(blockID, 0) - 1);
         if (mBlocksInCache.get(blockID) <= 0) {
             mBlocksInCache.remove(blockID);
@@ -56,23 +56,23 @@ public class TaoInterface {
         OperationID opID = clientReq.getOpID();
         int type = clientReq.getType();
         long blockID = clientReq.getBlockID();
-        System.out.println("Got a request with opID " + opID);
+        TaoLogger.logInfo("Got a request with opID " + opID);
 
         if (type == MessageTypes.CLIENT_READ_REQUEST) {
             cacheLock.writeLock().lock();
 
             // Evict oldest entry if cache is full
             while (mIncompleteCache.size() >= TaoConfigs.INCOMPLETE_CACHE_LIMIT) {
-                System.out.println("Cache size: "+mIncompleteCache.size());
-                System.out.println("Cache limit: "+TaoConfigs.INCOMPLETE_CACHE_LIMIT);
+                TaoLogger.logInfo("Cache size: "+mIncompleteCache.size());
+                TaoLogger.logInfo("Cache limit: "+TaoConfigs.INCOMPLETE_CACHE_LIMIT);
                 OperationID opToRemove = cacheOpsInOrder.poll();
-                System.out.println("Evicting "+opToRemove);
+                TaoLogger.logInfo("Evicting "+opToRemove);
                 removeOpFromCache(opToRemove);
             }
 
             mIncompleteCache.put(opID, blockID);
             mBlocksInCache.put(blockID, mBlocksInCache.getOrDefault(blockID, 0) + 1);
-            System.out.println("There are now "+mBlocksInCache.get(blockID)+" instances of block " + blockID + " in the incomplete cache");
+            TaoLogger.logInfo("There are now "+mBlocksInCache.get(blockID)+" instances of block " + blockID + " in the incomplete cache");
             cacheOpsInOrder.add(opID);
             cacheLock.writeLock().unlock();
 
@@ -87,24 +87,24 @@ public class TaoInterface {
                 mProcessor.mSubtree.removeBlock(blockID);
                 targetBucket.unlockBucket();
                 mProcessor.mStash.addBlock(b);
-                System.out.println("Moved block " + blockID + "from subtree to stash");
+                TaoLogger.logInfo("Moved block " + blockID + "from subtree to stash");
             }
 
             mSequencer.onReceiveRequest(clientReq);
         } else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
             cacheLock.readLock().lock();
             if (!mIncompleteCache.keySet().contains(opID)) {
-                System.out.println("mIncompleteCache does not contain opID "+opID+"!");
-                System.out.println(mIncompleteCache.keySet());
+                TaoLogger.logInfo("mIncompleteCache does not contain opID "+opID+"!");
+                TaoLogger.logInfo(mIncompleteCache.keySet().toString());
                 cacheLock.readLock().unlock();
                 return;
             } else {
-                System.out.println("Found opID "+opID+" in cache");
+                TaoLogger.logInfo("Found opID "+opID+" in cache");
             }
             // Update block in tree
-            System.out.println("About to write to block");
+            TaoLogger.logInfo("About to write to block");
             mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
-            System.out.println("Wrote data to block");
+            TaoLogger.logInfo("Wrote data to block");
             cacheLock.readLock().unlock();
 
             // Remove operation from incomplete cache

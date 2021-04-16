@@ -280,7 +280,7 @@ public class TaoProxy implements Proxy {
                     try {
                         typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
                     } catch (BufferUnderflowException e) {
-                        System.out.println("Lost connection to client");
+                        TaoLogger.logForce("Lost connection to client");
                         return;
                     }
                     int messageType = typeAndLength[0];

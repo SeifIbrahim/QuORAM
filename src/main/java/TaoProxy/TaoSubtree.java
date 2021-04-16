@@ -120,7 +120,7 @@ public class TaoSubtree implements Subtree {
             // Keep track of current bucket
             SubtreeBucket currentBucket = mRoot;
             if (currentBucket == null) {
-                System.out.println("currentBucket null TaoSubtree");
+                TaoLogger.logForce("currentBucket null TaoSubtree");
                 System.exit(0);
             }
 

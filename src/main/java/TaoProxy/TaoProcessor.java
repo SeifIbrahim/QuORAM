@@ -561,7 +561,7 @@ public class TaoProcessor implements Processor {
         // to the stash
         ArrayList<Block> toPutInStash = decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet());
         for (Block b : toPutInStash) {
-            System.out.println("Put block "+b.getBlockID() + " in stash");
+            TaoLogger.logInfo("Put block "+b.getBlockID() + " in stash");
             mStash.addBlock(b);
         }
 
@@ -810,7 +810,7 @@ public class TaoProcessor implements Processor {
             }
             return;
         } else {
-            System.out.println("Target block " + blockID + " not in stash!");
+            TaoLogger.logForce("Target block " + blockID + " not in stash!");
             System.exit(0);
         }
     }
@@ -918,7 +918,7 @@ public class TaoProcessor implements Processor {
         }
 
         if (mSubtree.getPath(pathID) == null) {
-            System.out.println("Error from TaoProcessor.getHeap: path "+pathID+" is null");
+            TaoLogger.logForce("Error from TaoProcessor.getHeap: path "+pathID+" is null");
             System.exit(0);
         }
 

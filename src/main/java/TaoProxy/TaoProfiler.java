@@ -201,7 +201,7 @@ public class TaoProfiler implements Profiler {
         if (mReadPathStartTimes.containsKey(req)) {
             long readPathStartTime = mReadPathStartTimes.get(req);
             mReadPathStartTimes.remove(req);
-            System.out.println("removed req"+req.getRequestID());
+            TaoLogger.logInfo("removed req"+req.getRequestID());
 
             long totalTime = System.currentTimeMillis() - readPathStartTime;
             synchronized (mReadPathStatistics) {
@@ -277,7 +277,7 @@ public class TaoProfiler implements Profiler {
             mReadPathSendToRecvTimes.put(address, new ConcurrentHashMap<>());
         }
 
-        System.out.println("readPathPostRecv "+req.getRequestID());
+        TaoLogger.logInfo("readPathPostRecv "+req.getRequestID());
 
         Map<ClientRequest, Long> readPathSendToRecvTimesForServer = mReadPathSendToRecvTimes.get(address);
         long t1 = mReadPathPreSendTimes.get(address).get(req);
