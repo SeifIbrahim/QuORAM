@@ -412,14 +412,14 @@ public class TaoClient implements Client {
 		Tag tag = null;
 
 		// Wait for a read quorum (here a simple majority) of responses
-		int readResponseCount = 0;
+		HashSet<Integer> readResponses = new HashSet<Integer>();
 		HashSet<Integer> writeResponses = new HashSet<Integer>();
 		boolean firstWrite = true;
 		while (writeResponses.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
 			if (!firstWrite) {
 				TaoLogger.logForce("First write failed, retrying...");
 			}
-			while (readResponseCount < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
+			while (readResponses.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
 				// refill the quorum
 				while (quorum.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
 					System.out.println("Adding unit to quorum");
@@ -447,7 +447,7 @@ public class TaoClient implements Client {
 							}
 
 							it.remove();
-							readResponseCount++;
+							readResponses.add(entry.getKey());
 
 							markResponsive(entry.getKey());
 						} catch (Exception e) {
@@ -511,6 +511,8 @@ public class TaoClient implements Client {
 
 						// Remove unit from quorum and mark unresponsive
 						quorum.remove(entry.getKey());
+						// remove from the read responses so that we read from someone else
+						readResponses.remove(entry.getKey());
 						markUnresponsive(entry.getKey());
 					}
 				}
