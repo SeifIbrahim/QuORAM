@@ -234,7 +234,7 @@ public class TaoProcessor implements Processor {
             // Unlock
             requestListLock.readLock().unlock();
 
-            TaoLogger.logForce("Doing a read for pathID " + pathID + " and block ID "+req.getBlockID() + "("+mPositionMap.getBlockPosition(req.getBlockID())+")");
+            TaoLogger.logInfo("Doing a read for pathID " + pathID + " and block ID "+req.getBlockID() + "("+mPositionMap.getBlockPosition(req.getBlockID())+")");
 
             // Insert request into mPathReqMultiSet to make sure that this path is not deleted before this response
             // returns from server
@@ -728,7 +728,7 @@ public class TaoProcessor implements Processor {
 
             if (targetBucket != null) {
                 // If we found the bucket in the subtree, we can attempt to get the data from the block in bucket
-                TaoLogger.logForce("Bucket containing block "+blockID+" found in subtree");
+                TaoLogger.logInfo("Bucket containing block "+blockID+" found in subtree");
                 Block data = targetBucket.getDataFromBlock(blockID);
 
                 // Check if this data is not null
@@ -745,7 +745,7 @@ public class TaoProcessor implements Processor {
                 }
             } else {
                 // If the block wasn't in the subtree, it should be in the stash
-                TaoLogger.logForce("Cannot find block "+blockID+" in subtree");
+                TaoLogger.logInfo("Cannot find block "+blockID+" in subtree");
                 Block targetBlock = mStash.getBlock(blockID);
 
                 if (targetBlock != null) {
