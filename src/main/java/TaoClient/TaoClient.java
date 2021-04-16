@@ -95,9 +95,11 @@ public class TaoClient implements Client {
 
 	public TaoClient(short id) {
 		try {
-			System.out.println("making client");
+			TaoLogger.logInfo("making client");
 			// Initialize needed constants
 			TaoConfigs.initConfiguration();
+			
+			TaoLogger.logLevel = TaoLogger.LOG_OFF;
 
 			if (id == -1) {
 				synchronized (sNextClientID) {
@@ -164,7 +166,7 @@ public class TaoClient implements Client {
 
 			Runnable serializeProcedure = () -> processAllProxyReplies();
 			new Thread(serializeProcedure).start();
-			System.out.println("made client");
+			TaoLogger.logInfo("made client");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -209,7 +211,7 @@ public class TaoClient implements Client {
 		Iterator it = mChannels.entrySet().iterator();
 		while (it.hasNext()) {
 			Map.Entry<Integer, AsynchronousSocketChannel> entry = (Map.Entry) it.next();
-			System.out.println("Setting up thread for process " + entry.getKey());
+			TaoLogger.logInfo("Setting up thread for process " + entry.getKey());
 			Runnable serializeProcedure = () -> processProxyReplies(entry.getKey());
 			new Thread(serializeProcedure).start();
 		}
@@ -231,14 +233,14 @@ public class TaoClient implements Client {
 				try {
 					typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
 				} catch (BufferUnderflowException e) {
-					System.out.println("Unit " + unitID + " is down");
+					TaoLogger.logWarning("Unit " + unitID + " is down");
 					try {
 						Thread.sleep(10000);
 					} catch (InterruptedException interruptError) {
 					}
 					AsynchronousSocketChannel newChannel;
 
-					System.out.println("Trying to reconnect to unit " + unitID);
+					TaoLogger.logWarning("Trying to reconnect to unit " + unitID);
 					boolean connected = false;
 					while (!connected) {
 						try {
@@ -246,7 +248,7 @@ public class TaoClient implements Client {
 							newChannel = AsynchronousSocketChannel.open(mThreadGroup);
 							Future connection = newChannel.connect(mProxyAddresses.get(unitID));
 							connection.get();
-							System.out.println("Successfully reconnected to unit " + unitID);
+							TaoLogger.logWarning("Successfully reconnected to unit " + unitID);
 							mChannels.put(unitID, newChannel);
 							processProxyReplies(unitID);
 							return;
@@ -374,15 +376,15 @@ public class TaoClient implements Client {
 
 		// Do exponential backoff
 		long backoff = (long) Math.pow(2, mBackoffCountMap.get(unitID)) + 500 + (new Random().nextInt(500));
-		System.out.println("Unit " + unitID + " will not be contacted for " + backoff + "ms");
+		TaoLogger.logWarning("Unit " + unitID + " will not be contacted for " + backoff + "ms");
 		mBackoffTimeMap.put(unitID, time + backoff);
 		backoffLock.writeLock().unlock();
 	}
 
 	public byte[] logicalOperation(long blockID, byte[] data, boolean isWrite) {
-		System.out.println("\n\n");
+		TaoLogger.logInfo("\n\n");
 
-		System.out.println("starting logical op");
+		TaoLogger.logInfo("starting logical op");
 		// Assign the operation a unique ID
 		OperationID opID;
 		synchronized (mNextOpID) {
@@ -391,13 +393,13 @@ public class TaoClient implements Client {
 		}
 
 		// Select the initial quorum for this operation
-		System.out.println("Quorum contains:");
+		TaoLogger.logInfo("Quorum contains:");
 		Set<Integer> quorum = buildQuorum();
 		for (int i : quorum) {
-			System.out.println(i);
+			TaoLogger.logInfo(Integer.toString(i));
 		}
 
-		System.out.println("Starting logical operation " + opID);
+		TaoLogger.logInfo("Starting logical operation " + opID);
 
 		// Broadcast read(blockID) to all ORAM units
 		Map<Integer, Long> timeStart = new HashMap<>();
@@ -422,7 +424,7 @@ public class TaoClient implements Client {
 			while (readResponses.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
 				// refill the quorum
 				while (quorum.size() < (int) ((TaoConfigs.ORAM_UNITS.size() + 1) / 2)) {
-					System.out.println("Adding unit to quorum");
+					TaoLogger.logInfo("Adding unit to quorum");
 					int addedUnit = selectUnit(quorum);
 					quorum.add(addedUnit);
 					readResponsesWaiting.put(addedUnit, readAsync(blockID, addedUnit, opID));
@@ -434,7 +436,7 @@ public class TaoClient implements Client {
 					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
 					if (entry.getValue().isDone()) {
 						try {
-							System.out.println("From proxy " + entry.getKey() + ": got value "
+							TaoLogger.logInfo("From proxy " + entry.getKey() + ": got value "
 									+ entry.getValue().get().getReturnData()[0] + " with tag "
 									+ entry.getValue().get().getReturnTag());
 							byte[] val = entry.getValue().get().getReturnData();
@@ -451,12 +453,12 @@ public class TaoClient implements Client {
 
 							markResponsive(entry.getKey());
 						} catch (Exception e) {
-							System.out.println(e);
+							TaoLogger.logForce(e.toString());
 							e.printStackTrace();
 						}
 					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 2000) {
 						entry.getValue().cancel(true);
-						System.out.println("Timed out during read waiting for proxy " + entry.getKey());
+						TaoLogger.logInfo("Timed out during read waiting for proxy " + entry.getKey());
 						it.remove();
 
 						// Remove unit from quorum and mark unresponsive
@@ -497,15 +499,16 @@ public class TaoClient implements Client {
 					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
 					if (entry.getValue().isDone()) {
 						try {
-							System.out.println("Got ack from proxy " + entry.getKey());
+							TaoLogger.logInfo("Got ack from proxy " + entry.getKey());
 							it.remove();
 							writeResponses.add(entry.getKey());
 						} catch (Exception e) {
-							System.out.println(e);
+							TaoLogger.logInfo(e.toString());
+							e.printStackTrace();
 						}
 					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
 						entry.getValue().cancel(true);
-						System.out.println("Timed out during write waiting for proxy " + entry.getKey());
+						TaoLogger.logInfo("Timed out during write waiting for proxy " + entry.getKey());
 
 						it.remove();
 
@@ -528,7 +531,7 @@ public class TaoClient implements Client {
 			it.remove();
 		}
 
-		System.out.println("\n\n");
+		TaoLogger.logInfo("\n\n");
 
 		return writebackVal;
 	}
@@ -623,7 +626,7 @@ public class TaoClient implements Client {
 					try {
 						writeResult.get();
 					} catch (Exception e) {
-						System.out.println("Unable to contact unit " + unitID);
+						TaoLogger.logWarning("Unable to contact unit " + unitID);
 						return;
 					}
 				}
