@@ -574,6 +574,7 @@ public class TaoProcessor implements Processor {
         // Insert every bucket along path that is not in subtree into subtree
         // We update the timestamp at this point in order to ensure that a delete does not delete an ancestor node
         // of a node that has been flushed to
+        mSubtreeRWL.writeLock().lock();
         mSubtree.addPath(decryptedPath, mWriteBackCounter);
 
 
@@ -597,8 +598,10 @@ public class TaoProcessor implements Processor {
             mResponseMap.remove(req);
 
             // We are done
+			mSubtreeRWL.writeLock().unlock();
             return;
         }
+        mSubtreeRWL.writeLock().unlock();
 
         // If the data has not yet returned, we check to see if this is the request that caused the real read for this block
         if (! fakeRead) {
@@ -817,8 +820,7 @@ public class TaoProcessor implements Processor {
 
     @Override
     public void flush(long pathID) {
-        // Take a subtree reader's lock
-        mSubtreeRWL.readLock().lock();
+        mSubtreeRWL.writeLock().lock();
 
         TaoLogger.logInfo("Doing a flush for pathID " + pathID);
 
@@ -828,12 +830,12 @@ public class TaoProcessor implements Processor {
 
 
         if (pathToFlush == null) {
-            mSubtreeRWL.readLock().unlock();
+            mSubtreeRWL.writeLock().unlock();
             return;
         }
 
         // Lock every bucket on the path
-        pathToFlush.lockPath();
+        // pathToFlush.lockPath();
 
         // Get a heap based on the block's path ID when compared to the target path ID
         PriorityQueue<Block> blockHeap = getHeap(pathID);
@@ -886,10 +888,10 @@ public class TaoProcessor implements Processor {
         }
 
         // Unlock the path
-        pathToFlush.unlockPath();
+        // pathToFlush.unlockPath();
 
         // Release subtree reader's lock
-        mSubtreeRWL.readLock().unlock();
+        mSubtreeRWL.writeLock().unlock();
 
         // Add this path to the write queue
         synchronized (mWriteQueue) {
@@ -1019,8 +1021,7 @@ public class TaoProcessor implements Processor {
             // Deep copy of paths in subtree for writeback
             Map<InetSocketAddress, List<Path>> wbPaths = new HashMap<>();
 
-            // Take the subtree writer's lock
-            mSubtreeRWL.writeLock().lock();
+            mSubtreeRWL.readLock().lock();
 
             // Make a deep copy of the needed paths from the subtree
             for (InetSocketAddress serverAddr : writebackMap.keySet()) {
@@ -1054,8 +1055,7 @@ public class TaoProcessor implements Processor {
                 wbPaths.put(serverAddr, paths);
             }
 
-            // Release the subtree writer's lock
-            mSubtreeRWL.writeLock().unlock();
+            mSubtreeRWL.readLock().unlock();
 
             // Now we will send the writeback request to each server
             for (InetSocketAddress serverAddr : wbPaths.keySet()) {
