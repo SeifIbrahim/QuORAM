@@ -897,6 +897,7 @@ public class TaoClient implements Client {
 				}
 				reader.close();
 			} else {
+				TaoConfigs.initConfiguration();
 				// Determine number of concurrent clients to run during the load test
 				int concurrentClients = Integer
 						.parseInt(options.getOrDefault("clients", Integer.toString(CONCURRENT_CLIENTS)));
