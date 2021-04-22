@@ -12,17 +12,16 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
-import java.nio.channels.AsynchronousServerSocketChannel;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.nio.BufferUnderflowException;
 import java.security.SecureRandom;
 import java.util.*;
+import java.util.Map.Entry;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
-import java.util.stream.LongStream;
 
 import org.apache.commons.math3.distribution.ZipfDistribution;
 
@@ -98,7 +97,7 @@ public class TaoClient implements Client {
 			TaoLogger.logInfo("making client");
 			// Initialize needed constants
 			TaoConfigs.initConfiguration();
-			
+
 			TaoLogger.logLevel = TaoLogger.LOG_OFF;
 
 			if (id == -1) {
@@ -117,11 +116,11 @@ public class TaoClient implements Client {
 			mClientAddress = new InetSocketAddress(currentIP, TaoConfigs.CLIENT_PORT);
 
 			// Initialize list of proxy addresses
-			mProxyAddresses = new ArrayList();
+			mProxyAddresses = new ArrayList<InetSocketAddress>();
 			for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
 				mProxyAddresses.add(new InetSocketAddress(TaoConfigs.ORAM_UNITS.get(i).proxyHost,
 						TaoConfigs.ORAM_UNITS.get(i).proxyPort));
-				mBackoffTimeMap.put(i, new Long(0));
+				mBackoffTimeMap.put(i, Long.valueOf(0));
 				mBackoffCountMap.put(i, 0);
 			}
 
@@ -136,13 +135,13 @@ public class TaoClient implements Client {
 					Executors.defaultThreadFactory());
 
 			boolean connected = false;
-			mChannels = new HashMap();
+			mChannels = new HashMap<Integer, AsynchronousSocketChannel>();
 			while (!connected) {
 				try {
 					// Create and connect channels to proxies
 					for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
 						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
-						Future connection = channel.connect(mProxyAddresses.get(i));
+						Future<?> connection = channel.connect(mProxyAddresses.get(i));
 						connection.get();
 						mChannels.put(i, channel);
 					}
@@ -208,9 +207,9 @@ public class TaoClient implements Client {
 	}
 
 	private void processAllProxyReplies() {
-		Iterator it = mChannels.entrySet().iterator();
+		Iterator<Entry<Integer, AsynchronousSocketChannel>> it = mChannels.entrySet().iterator();
 		while (it.hasNext()) {
-			Map.Entry<Integer, AsynchronousSocketChannel> entry = (Map.Entry) it.next();
+			Map.Entry<Integer, AsynchronousSocketChannel> entry = (Entry<Integer, AsynchronousSocketChannel>) it.next();
 			TaoLogger.logInfo("Setting up thread for process " + entry.getKey());
 			Runnable serializeProcedure = () -> processProxyReplies(entry.getKey());
 			new Thread(serializeProcedure).start();
@@ -246,7 +245,7 @@ public class TaoClient implements Client {
 						try {
 							channel.close();
 							newChannel = AsynchronousSocketChannel.open(mThreadGroup);
-							Future connection = newChannel.connect(mProxyAddresses.get(unitID));
+							Future<?> connection = newChannel.connect(mProxyAddresses.get(unitID));
 							connection.get();
 							TaoLogger.logWarning("Successfully reconnected to unit " + unitID);
 							mChannels.put(unitID, newChannel);
@@ -320,7 +319,7 @@ public class TaoClient implements Client {
 			backoffLock.readLock().lock();
 
 			Long time = System.currentTimeMillis();
-			Long soonestBackoffTime = new Long(-1);
+			Long soonestBackoffTime = Long.valueOf(-1);
 			for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
 				// Ignore any units already in the quorum
 				if (quorum.contains(i)) {
@@ -403,8 +402,8 @@ public class TaoClient implements Client {
 
 		// Broadcast read(blockID) to all ORAM units
 		Map<Integer, Long> timeStart = new HashMap<>();
-		Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap();
-		Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap();
+		Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap<Integer, Future<ProxyResponse>>();
+		Map<Integer, Future<ProxyResponse>> writeResponsesWaiting = new HashMap<Integer, Future<ProxyResponse>>();
 		for (int i : quorum) {
 			readResponsesWaiting.put(i, readAsync(blockID, i, opID));
 			timeStart.put(i, System.currentTimeMillis());
@@ -431,9 +430,9 @@ public class TaoClient implements Client {
 					timeStart.put(addedUnit, System.currentTimeMillis());
 				}
 
-				Iterator it = readResponsesWaiting.entrySet().iterator();
+				Iterator<Entry<Integer, Future<ProxyResponse>>> it = readResponsesWaiting.entrySet().iterator();
 				while (it.hasNext()) {
-					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
+					Map.Entry<Integer, Future<ProxyResponse>> entry = (Entry<Integer, Future<ProxyResponse>>) it.next();
 					if (entry.getValue().isDone()) {
 						try {
 							TaoLogger.logInfo("From proxy " + entry.getKey() + ": got value "
@@ -469,9 +468,9 @@ public class TaoClient implements Client {
 			}
 
 			// Cancel all pending reads, so that threads are not wasted
-			Iterator it = readResponsesWaiting.entrySet().iterator();
+			Iterator<Entry<Integer, Future<ProxyResponse>>> it = readResponsesWaiting.entrySet().iterator();
 			while (it.hasNext()) {
-				Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
+				Map.Entry<Integer, Future<ProxyResponse>> entry = (Entry<Integer, Future<ProxyResponse>>) it.next();
 				entry.getValue().cancel(true);
 				it.remove();
 			}
@@ -496,7 +495,7 @@ public class TaoClient implements Client {
 			while (!writeResponsesWaiting.isEmpty()) {
 				it = writeResponsesWaiting.entrySet().iterator();
 				while (it.hasNext()) {
-					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
+					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry<Integer, Future<ProxyResponse>>) it.next();
 					if (entry.getValue().isDone()) {
 						try {
 							TaoLogger.logInfo("Got ack from proxy " + entry.getKey());
@@ -524,9 +523,9 @@ public class TaoClient implements Client {
 		}
 
 		// Cancel all pending writes, so that threads are not wasted
-		Iterator it = writeResponsesWaiting.entrySet().iterator();
+		Iterator<Entry<Integer, Future<ProxyResponse>>> it = writeResponsesWaiting.entrySet().iterator();
 		while (it.hasNext()) {
-			Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry) it.next();
+			Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry<Integer, Future<ProxyResponse>>) it.next();
 			entry.getValue().cancel(true);
 			it.remove();
 		}
@@ -550,8 +549,7 @@ public class TaoClient implements Client {
 		// Because request IDs must be globally unique, we bit-shift the
 		// request ID to the left and add the client ID, thereby
 		// ensuring that no two clients use the same request ID
-		int shift = (int) Math.ceil(Math.log(TaoConfigs.MAX_CLIENT_ID) / Math.log(2));
-		long requestID = (long) Math.pow(2, shift) * mRequestID.getAndAdd(1) + mClientID;
+		long requestID = (Long.highestOneBit(TaoConfigs.MAX_CLIENT_ID) + 1) * mRequestID.getAndAdd(1) + mClientID;
 
 		// Create client request
 		ClientRequest request = mMessageCreator.createClientRequest();
@@ -719,14 +717,13 @@ public class TaoClient implements Client {
 	}
 
 	public static int doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
-		byte[] z;
 		if (readOrWrite == 0) {
 			TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
 
 			// Send read and keep track of response time
 			long start = System.currentTimeMillis();
 
-			z = client.logicalOperation(targetBlock, null, false);
+			client.logicalOperation(targetBlock, null, false);
 			sResponseTimes.add(System.currentTimeMillis() - start);
 		} else {
 			TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
@@ -898,6 +895,7 @@ public class TaoClient implements Client {
 						client.printSubtree();
 					}
 				}
+				reader.close();
 			} else {
 				// Determine number of concurrent clients to run during the load test
 				int concurrentClients = Integer
@@ -910,6 +908,12 @@ public class TaoClient implements Client {
 				// The number of warmup operations to perform before starting the load test
 				int warmupOperations = Integer
 						.parseInt(options.getOrDefault("warmup_operations", Integer.toString(WARMUP_OPERATIONS)));
+
+				// print tree size and number of items
+				long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
+				long numDataItems = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
+				TaoLogger.logForce("Tree Height: " + TaoConfigs.TREE_HEIGHT);
+				TaoLogger.logForce("Number of Data Items: " + numDataItems);
 
 				String rwRatioArg = options.getOrDefault("rwRatio", "0.5");
 				double rwRatio = Double.parseDouble(rwRatioArg);
