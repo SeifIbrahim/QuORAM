@@ -737,7 +737,7 @@ public class TaoClient implements Client {
 			sResponseTimes.add(System.currentTimeMillis() - start);
 
 			if (!writeStatus) {
-				TaoLogger.logError("Write failed for block " + targetBlock);
+				TaoLogger.logForce("Write failed for block " + targetBlock);
 				System.exit(1);
 			}
 		}
@@ -924,7 +924,7 @@ public class TaoClient implements Client {
 
 				loadTest(concurrentClients, loadTestLength, warmupOperations, rwRatio, zipfExp);
 
-				System.exit(1);
+				System.exit(0);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();

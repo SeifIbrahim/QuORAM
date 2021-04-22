@@ -85,7 +85,7 @@ public class TaoProxy implements Proxy {
 	public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, int unitId) {
 		try {
 			// For trace purposes
-			TaoLogger.logLevel = TaoLogger.LOG_OFF;
+			TaoLogger.logLevel = TaoLogger.LOG_ERROR;
 
 			// For profiling purposes
 			mProfiler = new TaoProfiler(unitId);
@@ -240,7 +240,6 @@ public class TaoProxy implements Proxy {
 			// Create an asynchronous channel to listen for connections
 			AsynchronousServerSocketChannel channel = AsynchronousServerSocketChannel.open(mThreadGroup)
 					.bind(new InetSocketAddress(u.proxyPort));
-
 			// Asynchronously wait for incoming connections
 			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
 				@Override
@@ -255,8 +254,8 @@ public class TaoProxy implements Proxy {
 
 				@Override
 				public void failed(Throwable exc, Void att) {
-					// TODO: implement?
 					TaoLogger.logForce("Failed to accept connections");
+					exc.printStackTrace();
 					try {
 						channel.close();
 					} catch (IOException e) {
@@ -296,6 +295,10 @@ public class TaoProxy implements Proxy {
 					} catch (BufferUnderflowException e) {
 						TaoLogger.logForce("Lost connection to client");
 						try {
+							// apparently the processor holds a channel open to the server for each client
+							// so we need to close those too
+							TaoLogger.logForce(((InetSocketAddress) channel.getRemoteAddress()).toString());
+							mProcessor.disconnectClient((InetSocketAddress) channel.getRemoteAddress());
 							channel.close();
 						} catch (IOException e1) {
 							e1.printStackTrace();

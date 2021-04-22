@@ -181,7 +181,7 @@ public class TaoConfigs {
         int numServers = PARTITION_SERVERS.size();
         if ((numServers & -numServers) != numServers) {
             // If not a power of two, we exit
-            TaoLogger.logError("The amount of storage servers must be a power of two");
+            TaoLogger.logForce("The amount of storage servers must be a power of two");
             System.exit(1);
         }
 
