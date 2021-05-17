@@ -578,7 +578,7 @@ public class TaoProcessor implements Processor {
 						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
 						Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
 						InetSocketAddress serverAddr = new InetSocketAddress(u.serverHost, u.serverPort);
-						Future connection = channel.connect(serverAddr);
+						Future<?> connection = channel.connect(serverAddr);
 						connection.get();
 
 						// Add the channel to the map
@@ -1172,13 +1172,12 @@ public class TaoProcessor implements Processor {
 
 				// Create and run server
 				Runnable writebackRunnable = () -> {
-					try {
+					try (AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup)) {
 						TaoLogger.logDebug("Going to do writeback for server " + serverIndexFinal);
 
 						// mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
 
 						// Create channel and connect to server
-						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
 						Future connection = channel.connect(serverAddr);
 						connection.get();
 
@@ -1320,7 +1319,7 @@ public class TaoProcessor implements Processor {
 
 	public void disconnectClient(InetSocketAddress addr) {
 		if (mProxyToServerChannelMap.containsKey(addr)) {
-			TaoLogger.logInfo("Removing client channels to server");
+			TaoLogger.logInfo("Removing client channels to server for client " + addr.toString());
 			for (Map.Entry<InetSocketAddress, AsynchronousSocketChannel> entry : mProxyToServerChannelMap.get(addr)
 					.entrySet()) {
 				try {
@@ -1334,6 +1333,10 @@ public class TaoProcessor implements Processor {
 			}
 			mProxyToServerChannelMap.remove(addr);
 			mAsyncProxyToServerSemaphoreMap.remove(addr);
+		}
+		else {
+			TaoLogger.logInfo("Client " + addr.toString() + " wasn't found in channel map");
+			TaoLogger.logInfo(mProxyToServerChannelMap.keySet().toString());
 		}
 	}
 

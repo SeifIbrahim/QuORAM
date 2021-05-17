@@ -238,8 +238,8 @@ public class TaoProxy implements Proxy {
 		try {
 			Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
 			// Create an asynchronous channel to listen for connections
-			AsynchronousServerSocketChannel channel = AsynchronousServerSocketChannel.open(mThreadGroup)
-					.bind(new InetSocketAddress(u.proxyPort));
+			AsynchronousServerSocketChannel channel = AsynchronousServerSocketChannel.open(mThreadGroup);
+			channel.bind(new InetSocketAddress(u.proxyPort));
 			// Asynchronously wait for incoming connections
 			channel.accept(null, new CompletionHandler<AsynchronousSocketChannel, Void>() {
 				@Override
@@ -297,7 +297,6 @@ public class TaoProxy implements Proxy {
 						try {
 							// apparently the processor holds a channel open to the server for each client
 							// so we need to close those too
-							TaoLogger.logForce(((InetSocketAddress) channel.getRemoteAddress()).toString());
 							mProcessor.disconnectClient((InetSocketAddress) channel.getRemoteAddress());
 							channel.close();
 						} catch (IOException e1) {

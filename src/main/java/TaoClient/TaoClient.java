@@ -13,6 +13,7 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
+import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.nio.BufferUnderflowException;
 import java.security.SecureRandom;
@@ -149,9 +150,6 @@ public class TaoClient implements Client {
 					connected = true;
 				} catch (Exception e) {
 					try {
-					} catch (Exception e2) {
-					}
-					try {
 						Thread.sleep(1000);
 					} catch (InterruptedException e3) {
 					}
@@ -168,6 +166,17 @@ public class TaoClient implements Client {
 			new Thread(serializeProcedure).start();
 			TaoLogger.logInfo("made client");
 		} catch (Exception e) {
+			e.printStackTrace();
+		}
+	}
+
+	protected void finalize() {
+		try {
+			for (Channel channel : mChannels.values()) {
+				channel.close();
+			}
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -496,7 +505,8 @@ public class TaoClient implements Client {
 			while (!writeResponsesWaiting.isEmpty()) {
 				it = writeResponsesWaiting.entrySet().iterator();
 				while (it.hasNext()) {
-					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry<Integer, Future<ProxyResponse>>) it.next();
+					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry<Integer, Future<ProxyResponse>>) it
+							.next();
 					if (entry.getValue().isDone()) {
 						try {
 							TaoLogger.logInfo("Got ack from proxy " + entry.getKey());
