@@ -5,6 +5,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.PrimitiveIterator;
@@ -163,6 +164,7 @@ public class InsecureTaoClient extends TaoClient {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
 
+		Collections.sort(sResponseTimes);
 		TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
 		TaoLogger.logForce("Response times: " + sResponseTimes.toString());
 
@@ -188,6 +190,7 @@ public class InsecureTaoClient extends TaoClient {
 
 		// TaoLogger.logForce("TPS: "+(requestsPerSecond));
 		TaoLogger.logForce("Average response time was " + average + " ms");
+		TaoLogger.logForce("Median response time was " + sResponseTimes.get(sResponseTimes.size() / 2));
 		TaoLogger.logForce("Thoughput: " + averageThroughput);
 	}
 
