@@ -701,6 +701,8 @@ public class TaoProcessor implements Processor {
 
 				// Check if the request was a write
 				if (currentRequest.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
+					TaoLogger.logForce("Processor is answering a write request. THIS SHOULDN'T HAPPEN");
+					/*
 					TaoLogger.logDebug("Write request BlockID " + req.getBlockID());
 					if (elementDoesExist) {
 						// The element should exist somewhere
@@ -716,6 +718,7 @@ public class TaoProcessor implements Processor {
 						mStash.addBlock(newBlock);
 					}
 					canPutInPositionMap = true;
+					*/
 				} else {
 					TaoLogger.logDebug("Read request BlockID " + req.getBlockID());
 					// If the element doesn't exist, create an empty block
@@ -877,8 +880,8 @@ public class TaoProcessor implements Processor {
 			}
 			return;
 		} else {
-			TaoLogger.logForce("Target block " + blockID + " not in stash!");
-			System.exit(1);
+			TaoLogger.logForce("Target block " + blockID + " not in stash! This shouldn't happen!");
+			TaoLogger.logForce(Thread.currentThread().getStackTrace().toString());
 		}
 	}
 

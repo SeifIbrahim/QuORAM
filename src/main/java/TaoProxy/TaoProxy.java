@@ -23,8 +23,13 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.List;
 import java.util.ArrayList;
@@ -144,7 +149,7 @@ public class TaoProxy implements Proxy {
 			mSequencer.mProcessor = mProcessor;
 			mInterface = new TaoInterface(mSequencer, mProcessor, mMessageCreator);
 			mProcessor.mInterface = mInterface;
-			
+
 			requestQueue = new LinkedBlockingDeque<>();
 			requestExecutor = Executors.newFixedThreadPool(128);
 		} catch (Exception e) {
@@ -167,54 +172,67 @@ public class TaoProxy implements Proxy {
 			TaoLogger.logInfo("Total paths " + totalPaths);
 
 			// Variables to both hold the data of a path as well as how big the path is
-			byte[] dataToWrite;
 
 			// Create each connection
 			Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
-			Socket serverSocket = new Socket(u.serverHost, u.serverPort);
+
+			Executor initExecutor = Executors.newFixedThreadPool(128);
+			CompletionService<Integer> initCompletion = new ExecutorCompletionService<Integer>(initExecutor);
 
 			// Loop to write each path to server
 			for (int i = 0; i < totalPaths; i++) {
-				TaoLogger.logForce("Creating path " + i);
+				final int j = i;
+				Callable<Integer> writePath = () -> {
+					Socket serverSocket = new Socket(u.serverHost, u.serverPort);
+					DataOutputStream output = new DataOutputStream(serverSocket.getOutputStream());
+					InputStream input = serverSocket.getInputStream();
 
-				DataOutputStream output = new DataOutputStream(serverSocket.getOutputStream());
-				InputStream input = serverSocket.getInputStream();
+					// Create empty paths and serialize
+					Path defaultPath = mPathCreator.createPath();
+					defaultPath.setPathID(mRelativeLeafMapper.get(((long) j)));
 
-				// Create empty paths and serialize
-				Path defaultPath = mPathCreator.createPath();
-				defaultPath.setPathID(mRelativeLeafMapper.get(((long) i)));
+					// Encrypt path
+					byte[] dataToWrite = mCryptoUtil.encryptPath(defaultPath);
 
-				// Encrypt path
-				dataToWrite = mCryptoUtil.encryptPath(defaultPath);
+					// Create a proxy write request
+					ProxyRequest writebackRequest = mMessageCreator.createProxyRequest();
+					writebackRequest.setType(MessageTypes.PROXY_INITIALIZE_REQUEST);
+					writebackRequest.setPathSize(dataToWrite.length);
+					writebackRequest.setDataToWrite(dataToWrite);
 
-				// Create a proxy write request
-				ProxyRequest writebackRequest = mMessageCreator.createProxyRequest();
-				writebackRequest.setType(MessageTypes.PROXY_INITIALIZE_REQUEST);
-				writebackRequest.setPathSize(dataToWrite.length);
-				writebackRequest.setDataToWrite(dataToWrite);
+					// Serialize the proxy request
+					byte[] proxyRequest = writebackRequest.serialize();
 
-				// Serialize the proxy request
-				byte[] proxyRequest = writebackRequest.serialize();
+					// Send the type and size of message to server
+					byte[] messageTypeBytes = Ints.toByteArray(MessageTypes.PROXY_INITIALIZE_REQUEST);
+					byte[] messageLengthBytes = Ints.toByteArray(proxyRequest.length);
+					output.write(Bytes.concat(messageTypeBytes, messageLengthBytes));
 
-				// Send the type and size of message to server
-				byte[] messageTypeBytes = Ints.toByteArray(MessageTypes.PROXY_INITIALIZE_REQUEST);
-				byte[] messageLengthBytes = Ints.toByteArray(proxyRequest.length);
-				output.write(Bytes.concat(messageTypeBytes, messageLengthBytes));
+					// Send actual message to server
+					output.write(proxyRequest);
 
-				// Send actual message to server
-				output.write(proxyRequest);
-
-				// Read in the response
-				// TODO: Currently not doing anything with response, possibly do something
-				byte[] typeAndSize = new byte[8];
-				input.read(typeAndSize);
-				int type = Ints.fromByteArray(Arrays.copyOfRange(typeAndSize, 0, 4));
-				int length = Ints.fromByteArray(Arrays.copyOfRange(typeAndSize, 4, 8));
-				byte[] message = new byte[length];
-				input.read(message);
+					// Read in the response
+					// TODO: Currently not doing anything with response, possibly do something
+					byte[] typeAndSize = new byte[8];
+					input.read(typeAndSize);
+					int type = Ints.fromByteArray(Arrays.copyOfRange(typeAndSize, 0, 4));
+					int length = Ints.fromByteArray(Arrays.copyOfRange(typeAndSize, 4, 8));
+					byte[] message = new byte[length];
+					input.close();
+					output.close();
+					serverSocket.close();
+					return j;
+				};
+				initCompletion.submit(writePath);
+			}
+			
+			// wait on the results
+			for (int i = 0; i < totalPaths; i++) {
+				Future<Integer> result = initCompletion.take();
+				Integer pathID = result.get();
+				TaoLogger.logForce("Wrote path " + pathID);
 			}
 
-			serverSocket.close();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -276,7 +294,6 @@ public class TaoProxy implements Proxy {
 			e.printStackTrace();
 		}
 	}
-	
 
 	private void processRequests() {
 		try {
@@ -370,7 +387,7 @@ public class TaoProxy implements Proxy {
 									requestQueue.put(clientReq);
 								} catch (InterruptedException e) {
 									e.printStackTrace();
-								}	
+								}
 
 								// Handle request
 								onReceiveRequest(clientReq);
