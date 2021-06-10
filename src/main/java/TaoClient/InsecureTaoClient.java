@@ -41,7 +41,7 @@ public class InsecureTaoClient extends TaoClient {
 			mBackoffTimeMap.put(i, Long.valueOf(0));
 			mBackoffCountMap.put(i, 0);
 		}
-		
+
 		boolean connected = false;
 		mChannels = new HashMap<Integer, AsynchronousSocketChannel>();
 		while (!connected) {
@@ -72,7 +72,9 @@ public class InsecureTaoClient extends TaoClient {
 			long start = System.currentTimeMillis();
 
 			client.logicalOperation(targetBlock, null, false);
-			sResponseTimes.add(System.currentTimeMillis() - start);
+			synchronized (sResponseTimes) {
+				sResponseTimes.add(System.currentTimeMillis() - start);
+			}
 		} else {
 			TaoLogger.logInfo("Doing write request #" + ((InsecureTaoClient) client).mRequestID.get());
 
@@ -82,7 +84,9 @@ public class InsecureTaoClient extends TaoClient {
 
 			long start = System.currentTimeMillis();
 			boolean writeStatus = (client.logicalOperation(targetBlock, dataToWrite, true) != null);
-			sResponseTimes.add(System.currentTimeMillis() - start);
+			synchronized (sResponseTimes) {
+				sResponseTimes.add(System.currentTimeMillis() - start);
+			}
 
 			if (!writeStatus) {
 				TaoLogger.logForce("Write failed for block " + targetBlock);
@@ -154,15 +158,19 @@ public class InsecureTaoClient extends TaoClient {
 		}
 		clientThreadExecutor.shutdown();
 		boolean terminated = clientThreadExecutor.awaitTermination(loadTestLength * 2, TimeUnit.MILLISECONDS);
+		long loadTestEndTime = System.currentTimeMillis();
 		if (!terminated) {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
+
+		TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
+		TaoLogger.logForce("Response times: " + sResponseTimes.toString());
 
 		double throughputTotal = 0;
 		for (Double l : sThroughputs) {
 			throughputTotal += l;
 		}
-		double averageThroughput = throughputTotal / (loadTestLength / 1000);
+		double averageThroughput = throughputTotal / ((loadTestEndTime - loadTestStartTime) / 1000);
 
 		TaoLogger.logForce("Ending load test");
 
