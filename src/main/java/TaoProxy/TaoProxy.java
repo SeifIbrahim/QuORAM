@@ -283,7 +283,7 @@ public class TaoProxy implements Proxy {
 			while (true) {
 				ClientRequest req;
 				req = requestQueue.take();
-				requestExecutor.submit(() -> mProcessor.readPath(req));
+				requestExecutor.submit(() -> mInterface.handleRequest(req));
 			}
 		} catch (InterruptedException e) {
 			e.printStackTrace();
