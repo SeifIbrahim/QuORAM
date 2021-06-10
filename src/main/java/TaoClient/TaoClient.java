@@ -829,6 +829,7 @@ public class TaoClient implements Client {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
 
+		Collections.sort(sResponseTimes);
 		TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
 		TaoLogger.logForce("Response times: " + sResponseTimes.toString());
 
@@ -854,6 +855,7 @@ public class TaoClient implements Client {
 
 		// TaoLogger.logForce("TPS: "+(requestsPerSecond));
 		TaoLogger.logForce("Average response time was " + average + " ms");
+		TaoLogger.logForce("Median response time was " + sResponseTimes.get(sResponseTimes.size() / 2));
 		TaoLogger.logForce("Thoughput: " + averageThroughput);
 	}
 
