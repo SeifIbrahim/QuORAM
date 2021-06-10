@@ -151,7 +151,7 @@ public class TaoProxy implements Proxy {
 			mProcessor.mInterface = mInterface;
 
 			requestQueue = new LinkedBlockingDeque<>();
-			requestExecutor = Executors.newFixedThreadPool(128);
+			requestExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -176,7 +176,7 @@ public class TaoProxy implements Proxy {
 			// Create each connection
 			Unit u = TaoConfigs.ORAM_UNITS.get(mUnitId);
 
-			Executor initExecutor = Executors.newFixedThreadPool(128);
+			Executor initExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
 			CompletionService<Integer> initCompletion = new ExecutorCompletionService<Integer>(initExecutor);
 
 			// Loop to write each path to server

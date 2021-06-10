@@ -58,4 +58,5 @@ incomplete_cache_limit = 100
 # The maximum client ID (same as the maximum number of clients)
 max_client_id = 90
 
-
+# The number of threads a proxy will use to process client requests
+proxy_service_threads = 128

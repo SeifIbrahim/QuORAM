@@ -16,7 +16,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * @brief Configurations for TaoStore
  */
 public class TaoConfigs {
-    // Name of file that users can provide to change the below defaults
+	// Name of file that users can provide to change the below defaults
     public static String USER_CONFIG_FILE = "config.properties";
 
     // Name of the file each storage server will store information too
@@ -87,6 +87,8 @@ public class TaoConfigs {
 
     public static int MAX_CLIENT_ID;
 
+    public static int PROXY_SERVICE_THREADS;
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -149,6 +151,9 @@ public class TaoConfigs {
 
                 String max_client_id = properties.getProperty("max_client_id");
                 MAX_CLIENT_ID = Integer.parseInt(max_client_id);
+
+				String proxy_service_threads = properties.getProperty("proxy_service_threads");
+                PROXY_SERVICE_THREADS = Integer.parseInt(proxy_service_threads);
 
                 for (int i = 0; i < num_units; i++) {
                     String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));
