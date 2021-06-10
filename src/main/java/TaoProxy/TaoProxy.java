@@ -22,7 +22,10 @@ import java.nio.channels.CompletionHandler;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingDeque;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -69,6 +72,9 @@ public class TaoProxy implements Proxy {
 
 	// public static final transient ReentrantLock mSubtreeLock = new
 	// ReentrantLock();
+
+	protected BlockingQueue<ClientRequest> requestQueue;
+	protected ExecutorService requestExecutor;
 
 	/**
 	 * @brief Default constructor
@@ -138,6 +144,9 @@ public class TaoProxy implements Proxy {
 			mSequencer.mProcessor = mProcessor;
 			mInterface = new TaoInterface(mSequencer, mProcessor, mMessageCreator);
 			mProcessor.mInterface = mInterface;
+			
+			requestQueue = new LinkedBlockingDeque<>();
+			requestExecutor = Executors.newFixedThreadPool(128);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -267,6 +276,19 @@ public class TaoProxy implements Proxy {
 			e.printStackTrace();
 		}
 	}
+	
+
+	private void processRequests() {
+		try {
+			while (true) {
+				ClientRequest req;
+				req = requestQueue.take();
+				requestExecutor.submit(() -> mProcessor.readPath(req));
+			}
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
+	}
 
 	/**
 	 * @brief Method to serve a client connection
@@ -337,12 +359,18 @@ public class TaoProxy implements Proxy {
 
 								TaoLogger.logInfo("Proxy will handle client request #" + clientReq.getRequestID());
 
-								// When we receive a request, we first send it to the sequencer
-								mInterface.handleRequest(clientReq);
-
 								// Serve the next client request
 								Runnable serializeProcedure = () -> serveClient(channel);
 								new Thread(serializeProcedure).start();
+
+								// When we receive a request, we first send it to the sequencer
+								// mInterface.handleRequest(clientReq);
+
+								try {
+									requestQueue.put(clientReq);
+								} catch (InterruptedException e) {
+									e.printStackTrace();
+								}	
 
 								// Handle request
 								onReceiveRequest(clientReq);
@@ -391,6 +419,9 @@ public class TaoProxy implements Proxy {
 			// Initialize and run server
 			proxy.initializeServer();
 			TaoLogger.logForce("Finished init, running proxy");
+			// launch the consumer thread
+			new Thread(() -> proxy.processRequests()).start();
+			// launch the producer thread
 			proxy.run();
 		} catch (Exception e) {
 			e.printStackTrace();
