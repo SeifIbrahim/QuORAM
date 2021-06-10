@@ -57,7 +57,7 @@ public class TaoServer implements Server {
 	protected ExecutorService mWriteBackExecutor;
 
 	// read and write threads will take from a shared pool of file pointers
-	private final Semaphore mFilePointersSemaphore = new Semaphore(1);
+	protected final Semaphore mFilePointersSemaphore = new Semaphore(1);
 
 	// shared stack of file pointers
 	protected Stack<RandomAccessFile> mFilePointers;
@@ -404,7 +404,7 @@ public class TaoServer implements Server {
 	 * @brief Method to serve a proxy connection
 	 * @param channel
 	 */
-	private void serveProxy(AsynchronousSocketChannel channel) {
+	protected void serveProxy(AsynchronousSocketChannel channel) {
 		try {
 			// Create byte buffer to use to read incoming message type and size
 			ByteBuffer messageTypeAndSize = ByteBuffer.allocate(4 + 4);

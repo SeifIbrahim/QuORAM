@@ -117,15 +117,6 @@ public class TaoClient implements Client {
 			String currentIP = InetAddress.getLocalHost().getHostAddress();
 			mClientAddress = new InetSocketAddress(currentIP, TaoConfigs.CLIENT_PORT);
 
-			// Initialize list of proxy addresses
-			mProxyAddresses = new ArrayList<InetSocketAddress>();
-			for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-				mProxyAddresses.add(new InetSocketAddress(TaoConfigs.ORAM_UNITS.get(i).proxyHost,
-						TaoConfigs.ORAM_UNITS.get(i).proxyPort));
-				mBackoffTimeMap.put(i, Long.valueOf(0));
-				mBackoffCountMap.put(i, 0);
-			}
-
 			// Create message creator
 			mMessageCreator = new TaoMessageCreator();
 
@@ -136,31 +127,13 @@ public class TaoClient implements Client {
 			mThreadGroup = AsynchronousChannelGroup.withFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT,
 					Executors.defaultThreadFactory());
 
-			boolean connected = false;
-			mChannels = new HashMap<Integer, AsynchronousSocketChannel>();
-			while (!connected) {
-				try {
-					// Create and connect channels to proxies
-					for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
-						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
-						Future<?> connection = channel.connect(mProxyAddresses.get(i));
-						connection.get();
-						mChannels.put(i, channel);
-					}
-					connected = true;
-				} catch (Exception e) {
-					try {
-						Thread.sleep(1000);
-					} catch (InterruptedException e3) {
-					}
-				}
-			}
-
 			// Create executor
 			mExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_THREAD_COUNT, Executors.defaultThreadFactory());
 
 			// Request ID counter
 			mRequestID = new AtomicLong();
+
+			initializeConnections();
 
 			Runnable serializeProcedure = () -> processAllProxyReplies();
 			new Thread(serializeProcedure).start();
@@ -170,13 +143,43 @@ public class TaoClient implements Client {
 		}
 	}
 
+	protected void initializeConnections() {
+		// Initialize list of proxy addresses
+		mProxyAddresses = new ArrayList<InetSocketAddress>();
+		for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+			mProxyAddresses.add(new InetSocketAddress(TaoConfigs.ORAM_UNITS.get(i).proxyHost,
+					TaoConfigs.ORAM_UNITS.get(i).proxyPort));
+			mBackoffTimeMap.put(i, Long.valueOf(0));
+			mBackoffCountMap.put(i, 0);
+		}
+
+		boolean connected = false;
+		mChannels = new HashMap<Integer, AsynchronousSocketChannel>();
+		while (!connected) {
+			try {
+				// Create and connect channels to proxies
+				for (int i = 0; i < TaoConfigs.ORAM_UNITS.size(); i++) {
+					AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
+					Future<?> connection = channel.connect(mProxyAddresses.get(i));
+					connection.get();
+					mChannels.put(i, channel);
+				}
+				connected = true;
+			} catch (Exception e) {
+				try {
+					Thread.sleep(1000);
+				} catch (InterruptedException e3) {
+				}
+			}
+		}
+	}
+
 	protected void finalize() {
 		try {
 			for (Channel channel : mChannels.values()) {
 				channel.close();
 			}
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	}
@@ -735,7 +738,9 @@ public class TaoClient implements Client {
 			long start = System.currentTimeMillis();
 
 			client.logicalOperation(targetBlock, null, false);
-			sResponseTimes.add(System.currentTimeMillis() - start);
+			synchronized (sResponseTimes) {
+				sResponseTimes.add(System.currentTimeMillis() - start);
+			}
 		} else {
 			TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
 
@@ -745,7 +750,9 @@ public class TaoClient implements Client {
 
 			long start = System.currentTimeMillis();
 			boolean writeStatus = (client.logicalOperation(targetBlock, dataToWrite, true) != null);
-			sResponseTimes.add(System.currentTimeMillis() - start);
+			synchronized (sResponseTimes) {
+				sResponseTimes.add(System.currentTimeMillis() - start);
+			}
 
 			if (!writeStatus) {
 				TaoLogger.logForce("Write failed for block " + targetBlock);
@@ -817,15 +824,19 @@ public class TaoClient implements Client {
 		}
 		clientThreadExecutor.shutdown();
 		boolean terminated = clientThreadExecutor.awaitTermination(loadTestLength * 2, TimeUnit.MILLISECONDS);
+		long loadTestEndTime = System.currentTimeMillis();
 		if (!terminated) {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
+
+		TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
+		TaoLogger.logForce("Response times: " + sResponseTimes.toString());
 
 		double throughputTotal = 0;
 		for (Double l : sThroughputs) {
 			throughputTotal += l;
 		}
-		double averageThroughput = throughputTotal / (loadTestLength / 1000);
+		double averageThroughput = throughputTotal / ((loadTestEndTime - loadTestStartTime) / 1000);
 
 		TaoLogger.logForce("Ending load test");
 

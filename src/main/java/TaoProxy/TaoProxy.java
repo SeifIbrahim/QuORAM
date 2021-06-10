@@ -297,7 +297,7 @@ public class TaoProxy implements Proxy {
 						try {
 							// apparently the processor holds a channel open to the server for each client
 							// so we need to close those too
-							mProcessor.disconnectClient((InetSocketAddress) channel.getRemoteAddress());
+							mProcessor.disconnectClient(channel);
 							channel.close();
 						} catch (IOException e1) {
 							e1.printStackTrace();

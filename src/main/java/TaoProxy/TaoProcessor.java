@@ -110,13 +110,13 @@ public class TaoProcessor implements Processor {
 	// as creating a new channel each time can result in a lot of overhead
 	// In the case the the dedicated channel is occupied, we will just create a new
 	// channel
-	protected Map<InetSocketAddress, Map<InetSocketAddress, AsynchronousSocketChannel>> mProxyToServerChannelMap;
+	protected Map<AsynchronousSocketChannel, Map<InetSocketAddress, AsynchronousSocketChannel>> mProxyToServerChannelMap;
 
 	// Each client will have a map that maps each storage server's InetSocketAddress
 	// to a semaphore
 	// This semaphore will control access to the dedicated channel so that two
 	// threads aren't using it at the same time
-	protected Map<InetSocketAddress, Map<InetSocketAddress, Semaphore>> mAsyncProxyToServerSemaphoreMap;
+	protected Map<AsynchronousSocketChannel, Map<InetSocketAddress, Semaphore>> mAsyncProxyToServerSemaphoreMap;
 
 	// The Profiler to store timing information
 	protected Profiler mProfiler;
@@ -275,23 +275,23 @@ public class TaoProcessor implements Processor {
 			// Get the map for particular client that maps the client to the channels
 			// connected to the server
 			Map<InetSocketAddress, AsynchronousSocketChannel> mChannelMap = mProxyToServerChannelMap
-					.get(req.getClientAddress());
+					.get(req.getChannel());
 
 			// If this is there first time the client has connected, the map may not have
 			// been made yet
 			if (mChannelMap == null) {
 				TaoLogger.logInfo("Going to make the initial connections for " + req.getClientAddress().getHostName());
-				makeInitialConnections(req.getClientAddress());
+				makeInitialConnections(req.getChannel());
 			}
 
 			// Get it once more in case it was null the first time
-			mChannelMap = mProxyToServerChannelMap.get(req.getClientAddress());
+			mChannelMap = mProxyToServerChannelMap.get(req.getChannel());
 
 			// Do this to make sure we wait until connections are made if this is one of the
 			// first requests made by this
 			// particular client
 			if (mChannelMap.size() < 1) {
-				makeInitialConnections(req.getClientAddress());
+				makeInitialConnections(req.getChannel());
 			}
 
 			// Get the particular server InetSocketAddress that we want to connect to
@@ -304,7 +304,7 @@ public class TaoProcessor implements Processor {
 			// access to the dedicated channel
 			// when requests from the same client arrive for the same server
 			Map<InetSocketAddress, Semaphore> serverSemaphoreMap = mAsyncProxyToServerSemaphoreMap
-					.get(req.getClientAddress());
+					.get(req.getChannel());
 
 			// Create a read request to send to server
 			ProxyRequest proxyRequest = mMessageCreator.createProxyRequest();
@@ -551,7 +551,7 @@ public class TaoProcessor implements Processor {
 	 * @brief Private helper method to make a map of server addresses to channels for addr
 	 * @param addr
 	 */
-	protected void makeInitialConnections(InetSocketAddress addr) {
+	protected void makeInitialConnections(AsynchronousSocketChannel addr) {
 		try {
 			// Get the number of storage servers
 			int numServers = 1;
@@ -1178,14 +1178,14 @@ public class TaoProcessor implements Processor {
 						// mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
 
 						// Create channel and connect to server
-						Future connection = channel.connect(serverAddr);
+						Future<Void> connection = channel.connect(serverAddr);
 						connection.get();
 
 						// First we send the message type to the server along with the size of the
 						// message
 						ByteBuffer messageType = MessageUtility.createMessageHeaderBuffer(
 								MessageTypes.PROXY_WRITE_REQUEST, encryptedWriteBackPaths.length);
-						Future sendHeader;
+						Future<?> sendHeader;
 						while (messageType.remaining() > 0) {
 							sendHeader = channel.write(messageType);
 							sendHeader.get();
@@ -1194,7 +1194,7 @@ public class TaoProcessor implements Processor {
 
 						// Send writeback paths
 						ByteBuffer message = ByteBuffer.wrap(encryptedWriteBackPaths);
-						Future sendMessage;
+						Future<?> sendMessage;
 						while (message.remaining() > 0) {
 							sendMessage = channel.write(message);
 							sendMessage.get();
@@ -1317,13 +1317,13 @@ public class TaoProcessor implements Processor {
 		}
 	}
 
-	public void disconnectClient(InetSocketAddress addr) {
-		if (mProxyToServerChannelMap.containsKey(addr)) {
-			TaoLogger.logInfo("Removing client channels to server for client " + addr.toString());
-			for (Map.Entry<InetSocketAddress, AsynchronousSocketChannel> entry : mProxyToServerChannelMap.get(addr)
+	public void disconnectClient(AsynchronousSocketChannel channel) {
+		if (mProxyToServerChannelMap.containsKey(channel)) {
+			TaoLogger.logInfo("Removing client channels to server for client " + channel.toString());
+			for (Map.Entry<InetSocketAddress, AsynchronousSocketChannel> entry : mProxyToServerChannelMap.get(channel)
 					.entrySet()) {
 				try {
-					Semaphore lock = mAsyncProxyToServerSemaphoreMap.get(addr).get(entry.getKey());
+					Semaphore lock = mAsyncProxyToServerSemaphoreMap.get(channel).get(entry.getKey());
 					lock.acquireUninterruptibly();
 					entry.getValue().close();
 					lock.release();
@@ -1331,11 +1331,11 @@ public class TaoProcessor implements Processor {
 					e.printStackTrace();
 				}
 			}
-			mProxyToServerChannelMap.remove(addr);
-			mAsyncProxyToServerSemaphoreMap.remove(addr);
+			mProxyToServerChannelMap.remove(channel);
+			mAsyncProxyToServerSemaphoreMap.remove(channel);
 		}
 		else {
-			TaoLogger.logInfo("Client " + addr.toString() + " wasn't found in channel map");
+			TaoLogger.logInfo("Client " + channel.toString() + " wasn't found in channel map");
 			TaoLogger.logInfo(mProxyToServerChannelMap.keySet().toString());
 		}
 	}

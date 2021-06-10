@@ -1,8 +1,8 @@
 #!/bin/bash
 
-SERVER_SESSION='dtao-server'
-PROXY_SESSION='dtao-proxy'
-CLIENT_SESSION='dtao-client'
+SERVER_SESSION='insec-server'
+PROXY_SESSION='insec-proxy'
+CLIENT_SESSION='insec-client'
 
 declare -A pane_map
 
@@ -46,18 +46,11 @@ tmux kill-session -t $CLIENT_SESSION > /dev/null 2>&1 || true
 #fi
 
 # launch servers
-_tmux_process_command $SERVER_SESSION 0 'C-c' "./scripts/run-server.sh 0"
-_tmux_process_command $SERVER_SESSION 1 'C-c' "./scripts/run-server.sh 1"
-_tmux_process_command $SERVER_SESSION 2 'C-c' "./scripts/run-server.sh 2"
+_tmux_process_command $SERVER_SESSION 0 'C-c' "./scripts/run-insecure-server.sh 0"
+_tmux_process_command $SERVER_SESSION 1 'C-c' "./scripts/run-insecure-server.sh 1"
+_tmux_process_command $SERVER_SESSION 2 'C-c' "./scripts/run-insecure-server.sh 2"
 
 echo 'Servers launched.'
-
-# launch proxies
-_tmux_process_command $PROXY_SESSION 0 'C-c' "./scripts/run-proxy.sh 0"
-_tmux_process_command $PROXY_SESSION 1 'C-c' "./scripts/run-proxy.sh 1"
-_tmux_process_command $PROXY_SESSION 2 'C-c' "./scripts/run-proxy.sh 2"
-
-echo 'Proxies launched.'
 
 # launch client
 num_clients=10
@@ -66,6 +59,6 @@ loadtest_length=$((60*1000))
 rw_ratio=0.5
 zipf=0.9
 
-_tmux_process_command $CLIENT_SESSION 0 'C-c' "./scripts/run-client.sh $num_clients $loadtest_length $rw_ratio $zipf $num_warmup"
+_tmux_process_command $CLIENT_SESSION 0 'C-c' "./scripts/run-insecure-client.sh $num_clients $loadtest_length $rw_ratio $zipf $num_warmup"
 
 echo 'Client launched.'
