@@ -67,6 +67,9 @@ public class TaoClient implements Client {
 	// Used for measuring latency when running load test
 	public static List<Long> sResponseTimes = new ArrayList<>();
 
+	// response times bucketed by time interval
+	public static ArrayList<ArrayList<Long>> sBucketedResponseTimes = new ArrayList<ArrayList<Long>>();
+
 	// Used for locking the async load test until all the operations are replied to
 	public static Object sAsycLoadLock = new Object();
 
@@ -83,7 +86,13 @@ public class TaoClient implements Client {
 	// The number of warmup operations to perform before beginning the load test
 	public static int WARMUP_OPERATIONS = 100;
 
+	// time interval for bucketting throughputs and response times
+	public static int SAMPLE_INTERVAL = 10 * 1000;
+
 	public static ArrayList<Double> sThroughputs = new ArrayList<>();
+
+	// throughput bucketed by time interval
+	public static ArrayList<Long> sBucketedThroughputs = new ArrayList<Long>();
 
 	public static long loadTestStartTime;
 
@@ -731,16 +740,14 @@ public class TaoClient implements Client {
 	}
 
 	public static int doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
+		long start;
 		if (readOrWrite == 0) {
 			TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
 
 			// Send read and keep track of response time
-			long start = System.currentTimeMillis();
+			start = System.currentTimeMillis();
 
 			client.logicalOperation(targetBlock, null, false);
-			synchronized (sResponseTimes) {
-				sResponseTimes.add(System.currentTimeMillis() - start);
-			}
 		} else {
 			TaoLogger.logInfo("Doing write request #" + ((TaoClient) client).mRequestID.get());
 
@@ -748,16 +755,23 @@ public class TaoClient implements Client {
 			byte[] dataToWrite = new byte[TaoConfigs.BLOCK_SIZE];
 			Arrays.fill(dataToWrite, (byte) targetBlock);
 
-			long start = System.currentTimeMillis();
+			start = System.currentTimeMillis();
+
 			boolean writeStatus = (client.logicalOperation(targetBlock, dataToWrite, true) != null);
-			synchronized (sResponseTimes) {
-				sResponseTimes.add(System.currentTimeMillis() - start);
-			}
 
 			if (!writeStatus) {
 				TaoLogger.logForce("Write failed for block " + targetBlock);
 				System.exit(1);
 			}
+		}
+		synchronized (sResponseTimes) {
+			sResponseTimes.add(System.currentTimeMillis() - start);
+			while (sBucketedResponseTimes
+					.size() < (int) (1 + (System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL)) {
+				sBucketedResponseTimes.add(new ArrayList<Long>());
+			}
+			sBucketedResponseTimes.get((int) ((System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL))
+					.add(System.currentTimeMillis() - start);
 		}
 
 		return 1;
@@ -783,6 +797,13 @@ public class TaoClient implements Client {
 				long targetBlock = zipf.sample();
 				doLoadTestOperation(client, readOrWrite, targetBlock);
 				operationCount++;
+				synchronized (sBucketedThroughputs) {
+					int index = (int) ((System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL);
+					while (sBucketedThroughputs.size() < index + 1) {
+						sBucketedThroughputs.add((long) 0);
+					}
+					sBucketedThroughputs.set(index, sBucketedThroughputs.get(index) + 1);
+				}
 			}
 
 			synchronized (sThroughputs) {
@@ -829,9 +850,25 @@ public class TaoClient implements Client {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
 
-		Collections.sort(sResponseTimes);
-		TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
-		TaoLogger.logForce("Response times: " + sResponseTimes.toString());
+		// Collections.sort(sResponseTimes);
+		// TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
+		// TaoLogger.logForce("Response times: " + sResponseTimes.toString());
+
+		TaoLogger.logForce("Response Times over Time:");
+		StringBuilder responseTimesBuilder = new StringBuilder();
+		for (int i = 0; i < sBucketedResponseTimes.size(); i++) {
+			responseTimesBuilder.append(String.format("(%d,%f)", i * SAMPLE_INTERVAL / 1000,
+					sBucketedResponseTimes.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
+		}
+		TaoLogger.logForce(responseTimesBuilder.toString());
+
+		TaoLogger.logForce("Throughputs over Time:");
+		StringBuilder throughputsBuilder = new StringBuilder();
+		for (int i = 0; i < sBucketedThroughputs.size(); i++) {
+			throughputsBuilder.append(String.format("(%d,%f)", i * SAMPLE_INTERVAL / 1000,
+					((double) sBucketedThroughputs.get(i)) / (SAMPLE_INTERVAL / 1000)));
+		}
+		TaoLogger.logForce(throughputsBuilder.toString());
 
 		double throughputTotal = 0;
 		for (Double l : sThroughputs) {
