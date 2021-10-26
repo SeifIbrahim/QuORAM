@@ -123,6 +123,8 @@ public class TaoProcessor implements Processor {
 
 	protected int mUnitId;
 
+	protected int mFailedWrites;
+
 	public TaoInterface mInterface;
 
 	/**
@@ -197,6 +199,8 @@ public class TaoProcessor implements Processor {
 
 			mProfiler = profiler;
 
+			mFailedWrites = 0;
+
 			// Initialize maps
 			mProxyToServerChannelMap = new ConcurrentHashMap<>();
 			mAsyncProxyToServerSemaphoreMap = new ConcurrentHashMap<>();
@@ -210,7 +214,7 @@ public class TaoProcessor implements Processor {
 		// mProfiler.readPathStart(req);
 
 		try {
-			TaoLogger.logInfo(
+			TaoLogger.logDebug(
 					"Starting a readPath for blockID " + req.getBlockID() + " and request #" + req.getRequestID());
 
 			// Create new entry into response map for this request
@@ -260,8 +264,8 @@ public class TaoProcessor implements Processor {
 			// Unlock
 			requestListLock.readLock().unlock();
 
-			TaoLogger.logInfo("Doing a read for pathID " + pathID + " and block ID " + req.getBlockID() + "("
-					+ mPositionMap.getBlockPosition(req.getBlockID()) + ")");
+			TaoLogger.logInfo("Doing a " + (fakeRead ? "fake" : "real") + " read for pathID " + pathID + " and blockID "
+					+ req.getBlockID() + "(" + mPositionMap.getBlockPosition(req.getBlockID()) + ")");
 
 			// Insert request into mPathReqMultiSet to make sure that this path is not
 			// deleted before this response
@@ -409,6 +413,8 @@ public class TaoProcessor implements Processor {
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
+								TaoLogger.logForce("Failed to write to server inside readPath");
+								exc.printStackTrace();
 							}
 						});
 					}
@@ -521,24 +527,28 @@ public class TaoProcessor implements Processor {
 
 															@Override
 															public void failed(Throwable exc, Void attachment) {
+																exc.printStackTrace();
 															}
 														});
 											}
 
 											@Override
 											public void failed(Throwable exc, Void attachment) {
+												exc.printStackTrace();
 											}
 										});
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
+								exc.printStackTrace();
 							}
 						});
 					}
 
 					@Override
 					public void failed(Throwable exc, Object attachment) {
+						exc.printStackTrace();
 					}
 				});
 			}
@@ -608,11 +618,12 @@ public class TaoProcessor implements Processor {
 
 		// Move any block that is pointed to by the interface's incompleteCache
 		// to the stash
-		ArrayList<Block> toPutInStash = decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet());
-		for (Block b : toPutInStash) {
-			TaoLogger.logInfo("Put block " + b.getBlockID() + " in stash");
-			mStash.addBlock(b);
-		}
+		/*
+		 * ArrayList<Block> toPutInStash =
+		 * decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet()); for
+		 * (Block b : toPutInStash) { TaoLogger.logInfo("Put block " + b.getBlockID() +
+		 * " in stash"); mStash.addBlock(b); }
+		 */
 
 		// Set the correct path ID
 		decryptedPath.setPathID(resp.getPathID());
@@ -703,22 +714,17 @@ public class TaoProcessor implements Processor {
 				if (currentRequest.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
 					TaoLogger.logForce("Processor is answering a write request. THIS SHOULDN'T HAPPEN");
 					/*
-					TaoLogger.logDebug("Write request BlockID " + req.getBlockID());
-					if (elementDoesExist) {
-						// The element should exist somewhere
-						writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData(),
-								currentRequest.getTag());
-					} else {
-						Block newBlock = mPathCreator.createBlock();
-						newBlock.setBlockID(currentRequest.getBlockID());
-						newBlock.setData(currentRequest.getData());
-						newBlock.setTag(currentRequest.getTag());
-
-						// Add block to stash and assign random path position
-						mStash.addBlock(newBlock);
-					}
-					canPutInPositionMap = true;
-					*/
+					 * TaoLogger.logDebug("Write request BlockID " + req.getBlockID()); if
+					 * (elementDoesExist) { // The element should exist somewhere
+					 * writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData(),
+					 * currentRequest.getTag()); } else { Block newBlock =
+					 * mPathCreator.createBlock(); newBlock.setBlockID(currentRequest.getBlockID());
+					 * newBlock.setData(currentRequest.getData());
+					 * newBlock.setTag(currentRequest.getTag());
+					 * 
+					 * // Add block to stash and assign random path position
+					 * mStash.addBlock(newBlock); } canPutInPositionMap = true;
+					 */
 				} else {
 					TaoLogger.logDebug("Read request BlockID " + req.getBlockID());
 					// If the element doesn't exist, create an empty block
@@ -869,19 +875,37 @@ public class TaoProcessor implements Processor {
 			return;
 		}
 
-		// Check for the block in the stash
-		Block targetBlock = mStash.getBlock(blockID);
+		while (true) {
+			// mSubtreeRWL.readLock().lock();
+			// Check if block is in subtree
+			Bucket targetBucket = mSubtree.getBucketWithBlock(blockID);
+			if (targetBucket != null) {
+				// If the bucket was found, we modify a block
+				if (tag.compareTo(targetBucket.getDataFromBlock(blockID).getTag()) >= 0) {
+					boolean success = targetBucket.modifyBlock(blockID, data, tag);
+					if (!success) {
+						TaoLogger.logForce("Found blockID " + blockID + " but failed to modify it.");
+					}
+				}
+				// mSubtreeRWL.readLock().unlock();
+				return;
+			} else {
+				// If we cannot find a bucket with the block, we check for the block in the
+				// stash
+				Block targetBlock = mStash.getBlock(blockID);
 
-		// If the block was found in the stash, we set the data for the block
-		if (targetBlock != null) {
-			if (tag.compareTo(targetBlock.getTag()) >= 0) {
-				targetBlock.setData(data);
-				targetBlock.setTag(tag);
+				// If the block was found in the stash, we set the data for the block
+				if (targetBlock != null) {
+					if (tag.compareTo(targetBlock.getTag()) >= 0) {
+						targetBlock.setData(data);
+						targetBlock.setTag(tag);
+					}
+					// mSubtreeRWL.readLock().unlock();
+					return;
+				}
 			}
-			return;
-		} else {
-			TaoLogger.logForce("Target block " + blockID + " not in stash! This shouldn't happen!");
-			TaoLogger.logForce(Thread.currentThread().getStackTrace().toString());
+			// mSubtreeRWL.readLock().unlock();
+			TaoLogger.logForce("Trying to look for blockID " + blockID + " again... This is bad.");
 		}
 	}
 
@@ -978,12 +1002,11 @@ public class TaoProcessor implements Processor {
 		ArrayList<Block> blocksToFlush = new ArrayList<>();
 		blocksToFlush.addAll(mStash.getAllBlocks());
 
-		for (int i = 0; i < blocksToFlush.size(); i++) {
-			if (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
-				blocksToFlush.remove(i);
-				i--;
-			}
-		}
+		/*
+		 * for (int i = 0; i < blocksToFlush.size(); i++) { if
+		 * (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
+		 * blocksToFlush.remove(i); i--; } }
+		 */
 
 		if (mSubtree.getPath(pathID) == null) {
 			TaoLogger.logForce("Error from TaoProcessor.getHeap: path " + pathID + " is null");
@@ -1175,7 +1198,8 @@ public class TaoProcessor implements Processor {
 
 				// Create and run server
 				Runnable writebackRunnable = () -> {
-					try (AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup)) {
+					try {
+						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
 						TaoLogger.logDebug("Going to do writeback for server " + serverIndexFinal);
 
 						// mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
@@ -1300,13 +1324,20 @@ public class TaoProcessor implements Processor {
 
 										@Override
 										public void failed(Throwable exc, Void attachment) {
+											TaoLogger.logForce(
+													"Failed to read the rest of the server response after writing back");
+											exc.printStackTrace();
 										}
 									});
+								} else {
+									TaoLogger.logForce("Got unexpected message type from the server");
 								}
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
+								TaoLogger.logForce("Failed to read server response header after writing back");
+								exc.printStackTrace();
 							}
 						});
 					} catch (Exception e) {
@@ -1336,8 +1367,7 @@ public class TaoProcessor implements Processor {
 			}
 			mProxyToServerChannelMap.remove(channel);
 			mAsyncProxyToServerSemaphoreMap.remove(channel);
-		}
-		else {
+		} else {
 			TaoLogger.logInfo("Client " + channel.toString() + " wasn't found in channel map");
 			TaoLogger.logInfo(mProxyToServerChannelMap.keySet().toString());
 		}

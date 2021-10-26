@@ -107,7 +107,7 @@ public class TaoClient implements Client {
 			// Initialize needed constants
 			TaoConfigs.initConfiguration();
 
-			TaoLogger.logLevel = TaoLogger.LOG_OFF;
+			TaoLogger.logLevel = TaoLogger.LOG_WARNING;
 
 			TaoLogger.logInfo("making client");
 
@@ -479,7 +479,7 @@ public class TaoClient implements Client {
 						}
 					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 2000) {
 						entry.getValue().cancel(true);
-						TaoLogger.logInfo("Timed out during read waiting for proxy " + entry.getKey());
+						TaoLogger.logForce("Timed out during read waiting for proxy " + entry.getKey());
 						it.remove();
 
 						// Remove unit from quorum and mark unresponsive
@@ -530,7 +530,7 @@ public class TaoClient implements Client {
 						}
 					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
 						entry.getValue().cancel(true);
-						TaoLogger.logInfo("Timed out during write waiting for proxy " + entry.getKey());
+						TaoLogger.logForce("Timed out during write waiting for proxy " + entry.getKey());
 
 						it.remove();
 

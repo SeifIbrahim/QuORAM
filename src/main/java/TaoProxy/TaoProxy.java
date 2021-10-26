@@ -60,7 +60,7 @@ public class TaoProxy implements Proxy {
 	protected CryptoUtil mCryptoUtil;
 
 	// A Subtree
-	protected Subtree mSubtree;
+	protected TaoSubtree mSubtree;
 
 	// A map that maps each leafID to the relative leaf ID it would have within a
 	// server partition
@@ -93,7 +93,7 @@ public class TaoProxy implements Proxy {
 	 * @param pathCreator
 	 * @param subtree
 	 */
-	public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, int unitId) {
+	public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, TaoSubtree subtree, int unitId) {
 		try {
 			// For trace purposes
 			TaoLogger.logLevel = TaoLogger.LOG_OFF;
@@ -148,6 +148,7 @@ public class TaoProxy implements Proxy {
 					mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler, mUnitId);
 			mSequencer.mProcessor = mProcessor;
 			mInterface = new TaoInterface(mSequencer, mProcessor, mMessageCreator);
+			mSubtree.mInterface = mInterface;
 			mProcessor.mInterface = mInterface;
 
 			requestQueue = new LinkedBlockingDeque<>();
@@ -244,7 +245,7 @@ public class TaoProxy implements Proxy {
 		// mSequencer.onReceiveRequest(req);
 
 		// We send the request to the processor, starting with the read path method
-		TaoLogger.logInfo("\n\n\nGot a client request (" + req.getOpID() + ") for " + req.getBlockID());
+		TaoLogger.logDebug("\n\n\nGot a client request (" + req.getOpID() + ") for " + req.getBlockID());
 	}
 
 	@Override
@@ -254,7 +255,7 @@ public class TaoProxy implements Proxy {
 		// write back
 		// mSubtreeLock.lock();
 		mProcessor.answerRequest(req, resp, isFakeRead);
-		TaoLogger.logInfo("Answering a client request for " + req.getBlockID());
+		TaoLogger.logDebug("Answering a client request for " + req.getBlockID());
 		mProcessor.flush(resp.getPathID());
 		// mSubtreeLock.unlock();
 		mProcessor.writeBack(TaoConfigs.WRITE_BACK_THRESHOLD);
@@ -313,7 +314,7 @@ public class TaoProxy implements Proxy {
 	 */
 	private void serveClient(AsynchronousSocketChannel channel) {
 		try {
-			TaoLogger.logInfo("Proxy will begin receiving client request");
+			TaoLogger.logDebug("Proxy will begin receiving client request");
 
 			// Create a ByteBuffer to read in message type
 			ByteBuffer typeByteBuffer = MessageUtility.createTypeReceiveBuffer();
@@ -325,7 +326,7 @@ public class TaoProxy implements Proxy {
 					// Flip the byte buffer for reading
 					typeByteBuffer.flip();
 
-					TaoLogger.logInfo("Proxy received a client request");
+					TaoLogger.logDebug("Proxy received a client request");
 
 					// Figure out the type of the message
 					int[] typeAndLength;
@@ -374,7 +375,7 @@ public class TaoProxy implements Proxy {
 								clientReq.initFromSerialized(requestBytes);
 								clientReq.setChannel(channel);
 
-								TaoLogger.logInfo("Proxy will handle client request #" + clientReq.getRequestID());
+								TaoLogger.logDebug("Proxy will handle client request #" + clientReq.getRequestID());
 
 								// Serve the next client request
 								Runnable serializeProcedure = () -> serveClient(channel);

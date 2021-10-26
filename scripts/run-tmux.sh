@@ -52,6 +52,8 @@ _tmux_process_command $SERVER_SESSION 2 'C-c' "./scripts/run-server.sh 2"
 
 echo 'Servers launched.'
 
+# sleep 2
+
 # launch proxies
 _tmux_process_command $PROXY_SESSION 0 'C-c' "./scripts/run-proxy.sh 0"
 _tmux_process_command $PROXY_SESSION 1 'C-c' "./scripts/run-proxy.sh 1"

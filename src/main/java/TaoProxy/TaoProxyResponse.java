@@ -24,6 +24,9 @@ public class TaoProxyResponse implements ProxyResponse {
     // The status of the request write if responding to a write request
     private boolean mWriteStatus;
 
+    // whether the response to the client indicates a failure (negative ack)
+    private boolean mFailed;
+
     /**
      * @brief Default constructor
      */
@@ -31,6 +34,7 @@ public class TaoProxyResponse implements ProxyResponse {
         mClientRequestID = -1;
         mReturnData = new byte[TaoConfigs.BLOCK_SIZE];
         mWriteStatus = false;
+        mFailed = false;
     }
 
     @Override
@@ -44,6 +48,10 @@ public class TaoProxyResponse implements ProxyResponse {
 
         int writeStatus = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
         mWriteStatus = writeStatus == 1 ? true : false;
+        startIndex += 4;
+
+        int failed = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
+        mFailed = failed == 1 ? true : false;
         startIndex += 4;
 
         mReturnTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
@@ -97,6 +105,13 @@ public class TaoProxyResponse implements ProxyResponse {
         byte[] clientIDBytes = Longs.toByteArray(mClientRequestID);
         int writeStatusInt = mWriteStatus ? 1 : 0;
         byte[] writeStatusBytes = Ints.toByteArray(writeStatusInt);
-        return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, mReturnTag);
+        int failedInt = mFailed ? 1 : 0;
+        byte[] failedBytes = Ints.toByteArray(failedInt);
+        return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, failedBytes, mReturnTag);
     }
+
+	@Override
+	public void setFailed(boolean status) {
+		mFailed = status;
+	}
 }

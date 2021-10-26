@@ -7,7 +7,7 @@ oram_file=oram.txt
 proxy_thread_count=10
 
 # The writeback threshold for the proxy
-write_back_threshold=8
+write_back_threshold=2
 
 # Client port
 client_port=12337
@@ -43,7 +43,7 @@ block_meta_data_size=18
 iv_size=16
 
 # The minimum desired size for storage in MB
-min_server_size=100
+min_server_size=2
 
 # The amount of storage servers per ORAM unit
 num_storage_servers=1
@@ -53,10 +53,10 @@ num_oram_units=3
 
 # The maximum number of in-progress operations that can be stored
 # in the incomplete cache
-incomplete_cache_limit = 100
+incomplete_cache_limit = 10000
 
 # The maximum client ID (same as the maximum number of clients)
 max_client_id = 90
 
 # The number of threads a proxy will use to process client requests
-proxy_service_threads = 128
+proxy_service_threads = 256
