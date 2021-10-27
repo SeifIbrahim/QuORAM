@@ -44,6 +44,9 @@ public class TaoClient implements Client {
 	// Incremented after each request
 	protected AtomicLong mRequestID;
 
+	// count how many operations were aborted due to the o_write failing
+	protected static AtomicLong mNumAborts;
+
 	// Thread group for asynchronous sockets
 	protected AsynchronousChannelGroup mThreadGroup;
 
@@ -107,7 +110,7 @@ public class TaoClient implements Client {
 			// Initialize needed constants
 			TaoConfigs.initConfiguration();
 
-			TaoLogger.logLevel = TaoLogger.LOG_WARNING;
+			TaoLogger.logLevel = TaoLogger.LOG_OFF;
 
 			TaoLogger.logInfo("making client");
 
@@ -141,6 +144,8 @@ public class TaoClient implements Client {
 
 			// Request ID counter
 			mRequestID = new AtomicLong();
+			
+			mNumAborts = new AtomicLong();
 
 			initializeConnections();
 
@@ -479,7 +484,7 @@ public class TaoClient implements Client {
 						}
 					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 2000) {
 						entry.getValue().cancel(true);
-						TaoLogger.logForce("Timed out during read waiting for proxy " + entry.getKey());
+						TaoLogger.logWarning("Timed out during read waiting for proxy " + entry.getKey());
 						it.remove();
 
 						// Remove unit from quorum and mark unresponsive
@@ -524,13 +529,25 @@ public class TaoClient implements Client {
 							TaoLogger.logInfo("Got ack from proxy " + entry.getKey());
 							it.remove();
 							writeResponses.add(entry.getKey());
+							markResponsive(entry.getKey());
+							
+							if(entry.getValue().get().getFailed()) {
+								// we got a negative ack in the write phase so abort the operation
+								// cancel waiting on responses so threads aren't wasted
+								while (it.hasNext()) {
+									Map.Entry<Integer, Future<ProxyResponse>> entry2 = (Entry<Integer, Future<ProxyResponse>>) it.next();
+									entry2.getValue().cancel(true);
+									it.remove();
+								}
+								return null;
+							}
 						} catch (Exception e) {
 							TaoLogger.logInfo(e.toString());
 							e.printStackTrace();
 						}
 					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + 5000) {
 						entry.getValue().cancel(true);
-						TaoLogger.logForce("Timed out during write waiting for proxy " + entry.getKey());
+						TaoLogger.logWarning("Timed out during write waiting for proxy " + entry.getKey());
 
 						it.remove();
 
@@ -739,8 +756,9 @@ public class TaoClient implements Client {
 		}
 	}
 
-	public static int doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
+	public static boolean doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
 		long start;
+		boolean success = true;
 		if (readOrWrite == 0) {
 			TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
 
@@ -760,8 +778,10 @@ public class TaoClient implements Client {
 			boolean writeStatus = (client.logicalOperation(targetBlock, dataToWrite, true) != null);
 
 			if (!writeStatus) {
-				TaoLogger.logForce("Write failed for block " + targetBlock);
-				System.exit(1);
+				mNumAborts.getAndAdd(1);
+				TaoLogger.logForce("Write aborted for block " + targetBlock);
+				TaoLogger.logForce("Total number of aborts: " + mNumAborts.get());
+				success = false;
 			}
 		}
 		synchronized (sResponseTimes) {
@@ -774,7 +794,7 @@ public class TaoClient implements Client {
 					.add(System.currentTimeMillis() - start);
 		}
 
-		return 1;
+		return success;
 	}
 
 	public static void loadTest(int concurrentClients, int loadTestLength, int warmupOperations, double rwRatio,
@@ -795,14 +815,16 @@ public class TaoClient implements Client {
 			while (System.currentTimeMillis() < loadTestStartTime + loadTestLength) {
 				int readOrWrite = (r.nextDouble() < rwRatio) ? 0 : 1;
 				long targetBlock = zipf.sample();
-				doLoadTestOperation(client, readOrWrite, targetBlock);
-				operationCount++;
-				synchronized (sBucketedThroughputs) {
-					int index = (int) ((System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL);
-					while (sBucketedThroughputs.size() < index + 1) {
-						sBucketedThroughputs.add((long) 0);
+				boolean success = doLoadTestOperation(client, readOrWrite, targetBlock);
+				if(success) {
+					operationCount++;
+					synchronized (sBucketedThroughputs) {
+						int index = (int) ((System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL);
+						while (sBucketedThroughputs.size() < index + 1) {
+							sBucketedThroughputs.add((long) 0);
+						}
+						sBucketedThroughputs.set(index, sBucketedThroughputs.get(index) + 1);
 					}
-					sBucketedThroughputs.set(index, sBucketedThroughputs.get(index) + 1);
 				}
 			}
 

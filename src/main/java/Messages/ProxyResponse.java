@@ -60,4 +60,6 @@ public interface ProxyResponse {
     byte[] serialize();
 
 	void setFailed(boolean b);
+
+	boolean getFailed();
 }

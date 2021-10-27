@@ -114,4 +114,9 @@ public class TaoProxyResponse implements ProxyResponse {
 	public void setFailed(boolean status) {
 		mFailed = status;
 	}
+
+	@Override
+	public boolean getFailed() {
+		return mFailed;
+	}
 }

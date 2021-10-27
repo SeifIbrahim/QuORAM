@@ -905,7 +905,7 @@ public class TaoProcessor implements Processor {
 				}
 			}
 			// mSubtreeRWL.readLock().unlock();
-			TaoLogger.logForce("Trying to look for blockID " + blockID + " again... This is bad.");
+			TaoLogger.logWarning("Trying to look for blockID " + blockID + " again... This is bad.");
 		}
 	}
 

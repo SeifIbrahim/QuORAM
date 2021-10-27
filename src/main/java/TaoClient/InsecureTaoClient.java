@@ -65,7 +65,7 @@ public class InsecureTaoClient extends TaoClient {
 	}
 
 	// change static methods to say InsecureTaoClient instead of TaoClient
-	public static int doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
+	public static boolean doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
 		if (readOrWrite == 0) {
 			TaoLogger.logInfo("Doing read request #" + ((InsecureTaoClient) client).mRequestID.get());
 
@@ -95,7 +95,7 @@ public class InsecureTaoClient extends TaoClient {
 			}
 		}
 
-		return 1;
+		return true;
 	}
 
 	public static void loadTest(int concurrentClients, int loadTestLength, int warmupOperations, double rwRatio,
