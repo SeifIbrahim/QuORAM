@@ -45,7 +45,7 @@ public class TaoClient implements Client {
 	protected AtomicLong mRequestID;
 
 	// count how many operations were aborted due to the o_write failing
-	protected static AtomicLong mNumAborts;
+	protected static AtomicLong sNumAborts = new AtomicLong();
 
 	// Thread group for asynchronous sockets
 	protected AsynchronousChannelGroup mThreadGroup;
@@ -145,8 +145,6 @@ public class TaoClient implements Client {
 			// Request ID counter
 			mRequestID = new AtomicLong();
 			
-			mNumAborts = new AtomicLong();
-
 			initializeConnections();
 
 			Runnable serializeProcedure = () -> processAllProxyReplies();
@@ -778,9 +776,9 @@ public class TaoClient implements Client {
 			boolean writeStatus = (client.logicalOperation(targetBlock, dataToWrite, true) != null);
 
 			if (!writeStatus) {
-				mNumAborts.getAndAdd(1);
+				sNumAborts.getAndAdd(1);
 				TaoLogger.logForce("Write aborted for block " + targetBlock);
-				TaoLogger.logForce("Total number of aborts: " + mNumAborts.get());
+				TaoLogger.logForce("Total number of aborts: " + sNumAborts.get());
 				success = false;
 			}
 		}
