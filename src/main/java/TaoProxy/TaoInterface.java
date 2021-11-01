@@ -71,9 +71,9 @@ public class TaoInterface {
 		numDeletions += deleted;
 		TaoLogger.logForce("Deleted " + deleted + " instances of blockID " + blockID + " from the incomplete cache.");
 		TaoLogger.logForce("Total deleted blocks: " + numDeletions);
-		for(Iterator<Entry<OperationID, Long>> it = mIncompleteCache.entrySet().iterator(); it.hasNext();) {
+		for (Iterator<Entry<OperationID, Long>> it = mIncompleteCache.entrySet().iterator(); it.hasNext();) {
 			Entry<OperationID, Long> e = it.next();
-			if(blockID == e.getValue()) {
+			if (blockID == e.getValue()) {
 				it.remove();
 				cacheOpsInOrder.remove(e.getKey());
 			}
@@ -140,7 +140,20 @@ public class TaoInterface {
 				TaoLogger.logInfo("About to write blockID " + blockID);
 				mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
 				TaoLogger.logInfo("Wrote blockID " + blockID);
+				// this needs to be here so that we can guarantee the block doesn't get deleted
+				// before we write to it
 				cacheLock.readLock().unlock();
+
+				// flush the path
+				long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);
+				if (pathID == -1) {
+					TaoLogger.logForce("Path ID for blockID " + blockID
+							+ " was unmapped during o_write. This should never happen!");
+					System.exit(1);
+				}
+				mProcessor.flush(pathID, true);
+				// Runnable flushProcedure = () -> mProcessor.flush(pathID);
+				// new Thread(flushProcedure).start();
 
 				// Remove operation from incomplete cache
 				cacheLock.writeLock().lock();

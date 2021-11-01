@@ -23,9 +23,6 @@ public class TaoSubtree implements Subtree {
     // The last level that needs to be saved to subtree
     // Every level greater than lastLevelToSave will be deleted when a path is deleted
     private int lastLevelToSave;
-    
-	// reference to the taoInterface so we can remove blocks from the incomplete cache when they get deleted
-    public TaoInterface mInterface = null;
 
     /**
      * @brief Default constructor
@@ -364,11 +361,6 @@ public class TaoSubtree implements Subtree {
         if (timestamp < minTime && ! isBucketInSet(pathID, currentLevel, pathReqMultiSet) && currentLevel > lastLevelToSave) {
             TaoLogger.logDebug("Deleting because " + timestamp + " < " + minTime);
 
-            // remove the deleted blocks from incomplete cache
-            for(Block b: child.getFilledBlocks()) {
-            	mInterface.removeBlockFromCache(b.getBlockID());
-            }
-
             // We should delete child, check if it was the right or left child
             if (directions[parentLevel]) {
                 TaoLogger.logDebug("Going to delete the right child for path " + pathID + " at level " + parentLevel);
@@ -431,10 +423,7 @@ public class TaoSubtree implements Subtree {
             boolean[] pathDirection = Utility.getPathFromPID(pathID, TaoConfigs.TREE_HEIGHT);
 
             // Try to delete all descendants
-            // cache lock is needed to remove blocks from the cache as we delete them
-			mInterface.cacheLock.writeLock().lock();
             deleteChild(mRoot, pathID, pathDirection, 0, minTime, pathReqMultiSet);
-			mInterface.cacheLock.writeLock().unlock();
 
             // Check if we can delete root
             // NOTE: If root has a timestamp less than minTime, the the entire subtree should be able to be deleted, and

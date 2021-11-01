@@ -840,6 +840,7 @@ public class TaoProcessor implements Processor {
 			if (checkNum == 10) {
 				TaoLogger.logForce(
 						"Cannot find data for block " + blockID + " in path " + mPositionMap.getBlockPosition(blockID));
+				TaoLogger.logForce(Arrays.toString(Thread.currentThread().getStackTrace()));
 				System.exit(1);
 			}
 
@@ -910,7 +911,7 @@ public class TaoProcessor implements Processor {
 	}
 
 	@Override
-	public void flush(long pathID) {
+	public void flush(long pathID, boolean update) {
 		mSubtreeRWL.writeLock().lock();
 
 		TaoLogger.logInfo("Doing a flush for pathID " + pathID);
@@ -949,8 +950,15 @@ public class TaoProcessor implements Processor {
 				// If the block can be inserted at this level, get the bucket
 				Bucket pathBucket = pathToFlush.getBucket(level);
 
-				// Try to add this block into the path and update the bucket's timestamp
-				if (pathBucket.addBlock(currentBlock, mWriteBackCounter)) {
+				long timestamp = pathBucket.getUpdateTime();
+				;
+				if (update) {
+					// update the bucket's timestamp
+					timestamp = mWriteBackCounter;
+				}
+
+				// Try to add this block into the path
+				if (pathBucket.addBlock(currentBlock, timestamp)) {
 					// If we have successfully added the block to the bucket, we remove the block
 					// from stash
 					mStash.removeBlock(currentBlock);
@@ -983,12 +991,14 @@ public class TaoProcessor implements Processor {
 		// Release subtree reader's lock
 		mSubtreeRWL.writeLock().unlock();
 
-		// Add this path to the write queue
-		synchronized (mWriteQueue) {
-			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
-			mWriteQueue.add(pathID);
-			// Increment the amount of times we have flushed
-			mWriteBackCounter++;
+		if (update) {
+			// Add this path to the write queue
+			synchronized (mWriteQueue) {
+				TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
+				mWriteQueue.add(pathID);
+				// Increment the amount of times we have flushed
+				mWriteBackCounter++;
+			}
 		}
 	}
 
@@ -1154,6 +1164,20 @@ public class TaoProcessor implements Processor {
 			}
 
 			mSubtreeRWL.readLock().unlock();
+
+			// Delete all pending operations whose blocks might get deleted from the
+			// incomplete cache
+			mInterface.cacheLock.writeLock().lock();
+			for (List<Path> paths : wbPaths.values()) {
+				for (Path path : paths) {
+					for (Bucket bucket : path.getBuckets()) {
+						for (Block block : bucket.getFilledBlocks()) {
+							mInterface.removeBlockFromCache(block.getBlockID());
+						}
+					}
+				}
+			}
+			mInterface.cacheLock.writeLock().unlock();
 
 			// Now we will send the writeback request to each server
 			for (InetSocketAddress serverAddr : wbPaths.keySet()) {

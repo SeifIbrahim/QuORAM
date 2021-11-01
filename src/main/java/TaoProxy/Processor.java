@@ -24,8 +24,9 @@ public interface Processor {
     /**
      * @brief Flush stash to path
      * @param pathID
+     * @param Whether the flush should update the timestamp and add to the write queue
      */
-    void flush(long pathID);
+    void flush(long pathID, boolean update);
 
     /**
      * @brief Write paths from subtree back to server

@@ -152,7 +152,6 @@ public class TaoProxy implements Proxy {
 					mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler, mUnitId);
 			mSequencer.mProcessor = mProcessor;
 			mInterface = new TaoInterface(mSequencer, mProcessor, mMessageCreator);
-			mSubtree.mInterface = mInterface;
 			mProcessor.mInterface = mInterface;
 
 			requestQueue = new LinkedBlockingDeque<>();
@@ -230,14 +229,13 @@ public class TaoProxy implements Proxy {
 				};
 				initCompletion.submit(writePath);
 			}
-			
+
 			// wait on the results
 			for (int i = 0; i < totalPaths; i++) {
 				Future<Integer> result = initCompletion.take();
 				Integer pathID = result.get();
 				TaoLogger.logForce("Wrote path " + pathID);
 			}
-
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -260,7 +258,10 @@ public class TaoProxy implements Proxy {
 		// mSubtreeLock.lock();
 		mProcessor.answerRequest(req, resp, isFakeRead);
 		TaoLogger.logDebug("Answering a client request for " + req.getBlockID());
-		mProcessor.flush(resp.getPathID());
+		// Even though we flush after o_write we still need to flush here in case the
+		// block gets reassigned to a different path and we want to be able to find it
+		// at the correct location
+		mProcessor.flush(resp.getPathID(), false);
 		// mSubtreeLock.unlock();
 		mProcessor.writeBack(TaoConfigs.WRITE_BACK_THRESHOLD);
 	}
@@ -350,8 +351,8 @@ public class TaoProxy implements Proxy {
 					}
 					int messageType = typeAndLength[0];
 					int messageLength = typeAndLength[1];
-					
-					if(messageType == MessageTypes.CLIENT_READ_REQUEST) {
+
+					if (messageType == MessageTypes.CLIENT_READ_REQUEST) {
 						sNumClientRequests.getAndAdd(1);
 						TaoLogger.logForce("Total Client Requests: " + sNumClientRequests.get());
 					}
