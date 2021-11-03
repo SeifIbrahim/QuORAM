@@ -58,4 +58,6 @@ public interface Subtree {
     void printSubtree();
 
     void removeBlock(long blockID);
+
+	long getNumBlocks();
 }

@@ -31,6 +31,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.List;
 import java.util.ArrayList;
 
@@ -80,6 +81,9 @@ public class TaoProxy implements Proxy {
 
 	protected BlockingQueue<ClientRequest> requestQueue;
 	protected ExecutorService requestExecutor;
+
+	// total number of requests that this proxy received from clients
+	protected static AtomicLong sNumClientRequests = new AtomicLong();
 
 	/**
 	 * @brief Default constructor
@@ -346,6 +350,10 @@ public class TaoProxy implements Proxy {
 					int messageType = typeAndLength[0];
 					int messageLength = typeAndLength[1];
 
+					if (messageType == MessageTypes.CLIENT_READ_REQUEST) {
+						sNumClientRequests.getAndAdd(1);
+					}
+
 					// Serve message based on type
 					if (messageType == MessageTypes.CLIENT_WRITE_REQUEST
 							|| messageType == MessageTypes.CLIENT_READ_REQUEST) {
@@ -403,6 +411,12 @@ public class TaoProxy implements Proxy {
 						mSubtree.printSubtree();
 					} else if (messageType == MessageTypes.WRITE_STATS) {
 						mProfiler.writeStatistics();
+					} else if (messageType == MessageTypes.INIT_LOAD_TEST) {
+						sNumClientRequests.set(0);
+						mProcessor.initLoadTest();
+					} else if (messageType == MessageTypes.FINISH_LOAD_TEST) {
+						TaoLogger.logForce("Total Client Requests: " + sNumClientRequests.get());
+						mProcessor.finishLoadTest();
 					}
 				}
 

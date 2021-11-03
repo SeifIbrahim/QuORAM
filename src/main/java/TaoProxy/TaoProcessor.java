@@ -125,6 +125,17 @@ public class TaoProcessor implements Processor {
 
 	public TaoInterface mInterface;
 
+	private long mLoadTestStartTime = System.currentTimeMillis();
+
+	// time interval for bucketting the average number of blocks in the proxy
+	private final int NUM_BLOCKS_SAMPLE_INTERVAL = 10 * 1000;
+
+	// number of blocks in the proxy bucketed by time interval
+	public ArrayList<ArrayList<Long>> mBucketedSubtreeBlocks = new ArrayList<ArrayList<Long>>();
+	public ArrayList<ArrayList<Long>> mBucketedStashBlocks = new ArrayList<ArrayList<Long>>();
+
+	private boolean mDoingLoadTest = false;
+
 	/**
 	 * @brief Constructor
 	 * @param proxy
@@ -164,7 +175,6 @@ public class TaoProcessor implements Processor {
 			mCryptoUtil = cryptoUtil;
 
 			// Create stash
-			// TODO: pass this in?
 			mStash = new TaoStash();
 
 			// Create request map
@@ -202,6 +212,26 @@ public class TaoProcessor implements Processor {
 			mAsyncProxyToServerSemaphoreMap = new ConcurrentHashMap<>();
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+	}
+	
+	private void logNumBlocks() {
+		if (mDoingLoadTest) {
+			while (mBucketedSubtreeBlocks.size() < (int) (1
+					+ (System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL)) {
+				mBucketedSubtreeBlocks.add(new ArrayList<Long>());
+			}
+			mBucketedSubtreeBlocks
+					.get((int) ((System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL))
+					.add(mSubtree.getNumBlocks() );
+
+			while (mBucketedStashBlocks.size() < (int) (1
+					+ (System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL)) {
+				mBucketedStashBlocks.add(new ArrayList<Long>());
+			}
+			mBucketedStashBlocks
+					.get((int) ((System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL))
+					.add((long) ((TaoStash) mStash).mStash.size());
 		}
 	}
 
@@ -653,6 +683,9 @@ public class TaoProcessor implements Processor {
 			return;
 		}
 		mSubtreeRWL.writeLock().unlock();
+
+		// log the number of blocks in the subtree
+		logNumBlocks();
 
 		// If the data has not yet returned, we check to see if this is the request that
 		// caused the real read for this block
@@ -1291,6 +1324,7 @@ public class TaoProcessor implements Processor {
 															mSubtreeRWL.writeLock().lock();
 															mSubtree.deleteNodes(pathID, finalWriteBackTime, set);
 															mSubtreeRWL.writeLock().unlock();
+															logNumBlocks();
 														}
 													}
 												}
@@ -1341,6 +1375,33 @@ public class TaoProcessor implements Processor {
 			TaoLogger.logInfo("Client " + channel.toString() + " wasn't found in channel map");
 			TaoLogger.logInfo(mProxyToServerChannelMap.keySet().toString());
 		}
+	}
+
+	public void initLoadTest() {
+		mDoingLoadTest = true;
+		mBucketedSubtreeBlocks.clear();
+		mBucketedStashBlocks.clear();
+		mLoadTestStartTime = System.currentTimeMillis();
+	}
+
+	public void finishLoadTest() {
+		mDoingLoadTest = false;
+
+		TaoLogger.logForce("Number of Subtree Blocks over Time:");
+		StringBuilder numSubtreeBlocksBuilder = new StringBuilder();
+		for (int i = 0; i < mBucketedSubtreeBlocks.size(); i++) {
+			numSubtreeBlocksBuilder.append(String.format("(%d,%f)", i * NUM_BLOCKS_SAMPLE_INTERVAL / 1000,
+					mBucketedSubtreeBlocks.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
+		}
+		TaoLogger.logForce(numSubtreeBlocksBuilder.toString());
+
+		TaoLogger.logForce("Number of Stash Blocks over Time:");
+		StringBuilder numStashBlocksBuilder = new StringBuilder();
+		for (int i = 0; i < mBucketedStashBlocks.size(); i++) {
+			numStashBlocksBuilder.append(String.format("(%d,%f)", i * NUM_BLOCKS_SAMPLE_INTERVAL / 1000,
+					mBucketedStashBlocks.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
+		}
+		TaoLogger.logForce(numStashBlocksBuilder.toString());
 	}
 
 }

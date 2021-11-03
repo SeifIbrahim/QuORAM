@@ -505,4 +505,9 @@ public class TaoSubtree implements Subtree {
     public void removeBlock(long blockID) {
         mBlockMap.remove(blockID);
     }
+    
+    // get the total number of blocks in the subtree
+    public long getNumBlocks( ) {
+    	return mBlockMap.size();
+    }
 }

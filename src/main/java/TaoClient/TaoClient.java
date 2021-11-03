@@ -689,18 +689,13 @@ public class TaoClient implements Client {
 		return future;
 	}
 
-	@Override
-	public void printSubtree() {
+	private void sendMessageToProxy(ClientRequest request, InetSocketAddress proxyAddress) {
 		try {
 			// Get proxy name and port
-			Socket clientSocket = new Socket(mProxyAddresses.get(0).getHostName(), mProxyAddresses.get(0).getPort());
+			Socket clientSocket = new Socket(proxyAddress.getHostName(), proxyAddress.getPort());
 
 			// Create output stream
 			DataOutputStream output = new DataOutputStream(clientSocket.getOutputStream());
-
-			// Create client request
-			ClientRequest request = mMessageCreator.createClientRequest();
-			request.setType(MessageTypes.PRINT_SUBTREE);
 
 			byte[] serializedRequest = request.serialize();
 			byte[] header = MessageUtility.createMessageHeaderBytes(request.getType(), serializedRequest.length);
@@ -711,6 +706,27 @@ public class TaoClient implements Client {
 			output.close();
 		} catch (Exception e) {
 			e.printStackTrace();
+		}
+		
+	}
+
+	@Override
+	public void printSubtree() {
+		ClientRequest request = makeRequest(MessageTypes.PRINT_SUBTREE, 0, null, null, null, null);
+		sendMessageToProxy(request, mProxyAddresses.get(0));
+	}
+
+	public void initProxyLoadTest() {
+		ClientRequest request = makeRequest(MessageTypes.INIT_LOAD_TEST, 0, null, null, null, null);
+		for(InetSocketAddress proxyAddress : mProxyAddresses) {
+			sendMessageToProxy(request, proxyAddress);
+		}
+	}
+
+	public void finishProxyLoadTest() {
+		ClientRequest request = makeRequest(MessageTypes.FINISH_LOAD_TEST, 0, null, null, null, null);
+		for(InetSocketAddress proxyAddress : mProxyAddresses) {
+			sendMessageToProxy(request, proxyAddress);
 		}
 	}
 
@@ -836,6 +852,9 @@ public class TaoClient implements Client {
 
 		TaoLogger.logForce("Beginning load test");
 
+		// inform the proxies we're about to start a load test
+		warmUpClient.initProxyLoadTest();
+
 		// Begin actual load test
 		ExecutorService clientThreadExecutor = Executors.newFixedThreadPool(concurrentClients,
 				Executors.defaultThreadFactory());
@@ -849,6 +868,9 @@ public class TaoClient implements Client {
 		if (!terminated) {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
+
+		// inform the proxies that we just finished the load test
+		warmUpClient.finishProxyLoadTest();
 
 		// Collections.sort(sResponseTimes);
 		// TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
