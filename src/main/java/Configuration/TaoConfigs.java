@@ -89,6 +89,8 @@ public class TaoConfigs {
 
     public static int PROXY_SERVICE_THREADS;
 
+	public static int ACCESS_DAEMON_DELAY;
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -154,6 +156,9 @@ public class TaoConfigs {
 
 				String proxy_service_threads = properties.getProperty("proxy_service_threads");
                 PROXY_SERVICE_THREADS = Integer.parseInt(proxy_service_threads);
+
+				String access_daemon_delay = properties.getProperty("access_daemon_delay");
+                ACCESS_DAEMON_DELAY = Integer.parseInt(access_daemon_delay);
 
                 for (int i = 0; i < num_units; i++) {
                     String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));

@@ -101,16 +101,31 @@ public class TaoInterface {
             } else {
                 TaoLogger.logInfo("Found opID "+opID+" in cache");
             }
-            // Update block in tree
-            TaoLogger.logInfo("About to write to block");
-            mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
-            TaoLogger.logInfo("Wrote data to block");
+            // if this was a dummy request from the daemon we don't want to overwrite the block
+            if(clientReq.getRequestID() != -1) {
+				// Update block in tree
+				TaoLogger.logInfo("About to write to block");
+				mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
+				TaoLogger.logInfo("Wrote data to block");
+            }
+			// this needs to be here so that we can guarantee the block doesn't get deleted
+            // before we write to it
             cacheLock.readLock().unlock();
 
             // Remove operation from incomplete cache
             cacheLock.writeLock().lock();
             removeOpFromCache(opID);
             cacheLock.writeLock().unlock();
+            
+			// flush the path
+            long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);
+            if (pathID == -1) {
+            	TaoLogger.logForce("Path ID for blockID " + blockID
+            			+ " was unmapped during o_write. This should never happen!");
+            	System.exit(1);
+            }
+            mProcessor.flush(pathID, true);
+
 
             // Create a ProxyResponse
 

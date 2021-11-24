@@ -25,7 +25,7 @@ public interface Processor {
      * @brief Flush stash to path
      * @param pathID
      */
-    void flush(long pathID);
+    void flush(long pathID, boolean update);
 
     /**
      * @brief Write paths from subtree back to server

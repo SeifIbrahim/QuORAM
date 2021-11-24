@@ -214,7 +214,7 @@ public class TaoProcessor implements Processor {
 			e.printStackTrace();
 		}
 	}
-	
+
 	private void logNumBlocks() {
 		if (mDoingLoadTest) {
 			while (mBucketedSubtreeBlocks.size() < (int) (1
@@ -223,7 +223,7 @@ public class TaoProcessor implements Processor {
 			}
 			mBucketedSubtreeBlocks
 					.get((int) ((System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL))
-					.add(mSubtree.getNumBlocks() );
+					.add(mSubtree.getNumBlocks());
 
 			while (mBucketedStashBlocks.size() < (int) (1
 					+ (System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL)) {
@@ -736,22 +736,17 @@ public class TaoProcessor implements Processor {
 				if (currentRequest.getType() == MessageTypes.CLIENT_WRITE_REQUEST) {
 					TaoLogger.logForce("Processor is answering a write request. THIS SHOULDN'T HAPPEN");
 					/*
-					TaoLogger.logDebug("Write request BlockID " + req.getBlockID());
-					if (elementDoesExist) {
-						// The element should exist somewhere
-						writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData(),
-								currentRequest.getTag());
-					} else {
-						Block newBlock = mPathCreator.createBlock();
-						newBlock.setBlockID(currentRequest.getBlockID());
-						newBlock.setData(currentRequest.getData());
-						newBlock.setTag(currentRequest.getTag());
-
-						// Add block to stash and assign random path position
-						mStash.addBlock(newBlock);
-					}
-					canPutInPositionMap = true;
-					*/
+					 * TaoLogger.logDebug("Write request BlockID " + req.getBlockID()); if
+					 * (elementDoesExist) { // The element should exist somewhere
+					 * writeDataToBlock(currentRequest.getBlockID(), currentRequest.getData(),
+					 * currentRequest.getTag()); } else { Block newBlock =
+					 * mPathCreator.createBlock(); newBlock.setBlockID(currentRequest.getBlockID());
+					 * newBlock.setData(currentRequest.getData());
+					 * newBlock.setTag(currentRequest.getTag());
+					 * 
+					 * // Add block to stash and assign random path position
+					 * mStash.addBlock(newBlock); } canPutInPositionMap = true;
+					 */
 				} else {
 					TaoLogger.logDebug("Read request BlockID " + req.getBlockID());
 					// If the element doesn't exist, create an empty block
@@ -919,7 +914,7 @@ public class TaoProcessor implements Processor {
 	}
 
 	@Override
-	public void flush(long pathID) {
+	public void flush(long pathID, boolean update) {
 		mSubtreeRWL.writeLock().lock();
 
 		TaoLogger.logInfo("Doing a flush for pathID " + pathID);
@@ -958,8 +953,14 @@ public class TaoProcessor implements Processor {
 				// If the block can be inserted at this level, get the bucket
 				Bucket pathBucket = pathToFlush.getBucket(level);
 
+				long timestamp = pathBucket.getUpdateTime();
+				if (update) {
+					// update the bucket's timestamp
+					timestamp = mWriteBackCounter;
+				}
+
 				// Try to add this block into the path and update the bucket's timestamp
-				if (pathBucket.addBlock(currentBlock, mWriteBackCounter)) {
+				if (pathBucket.addBlock(currentBlock, timestamp)) {
 					// If we have successfully added the block to the bucket, we remove the block
 					// from stash
 					mStash.removeBlock(currentBlock);
@@ -992,12 +993,14 @@ public class TaoProcessor implements Processor {
 		// Release subtree reader's lock
 		mSubtreeRWL.writeLock().unlock();
 
-		// Add this path to the write queue
-		synchronized (mWriteQueue) {
-			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
-			mWriteQueue.add(pathID);
-			// Increment the amount of times we have flushed
-			mWriteBackCounter++;
+		if (update) {
+			// Add this path to the write queue
+			synchronized (mWriteQueue) {
+				TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
+				mWriteQueue.add(pathID);
+				// Increment the amount of times we have flushed
+				mWriteBackCounter++;
+			}
 		}
 	}
 
@@ -1370,8 +1373,7 @@ public class TaoProcessor implements Processor {
 			}
 			mProxyToServerChannelMap.remove(channel);
 			mAsyncProxyToServerSemaphoreMap.remove(channel);
-		}
-		else {
+		} else {
 			TaoLogger.logInfo("Client " + channel.toString() + " wasn't found in channel map");
 			TaoLogger.logInfo(mProxyToServerChannelMap.keySet().toString());
 		}
