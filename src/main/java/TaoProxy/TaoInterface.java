@@ -78,6 +78,7 @@ public class TaoInterface {
 
             // If the block we just added to the incomplete cache exists in the subtree,
             // move it to the stash
+            /*
             Bucket targetBucket = mProcessor.mSubtree.getBucketWithBlock(blockID);
             if (targetBucket != null) {
                 targetBucket.lockBucket();
@@ -89,6 +90,7 @@ public class TaoInterface {
                 mProcessor.mStash.addBlock(b);
                 TaoLogger.logInfo("Moved block " + blockID + "from subtree to stash");
             }
+            */
 
             mSequencer.onReceiveRequest(clientReq);
         } else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {

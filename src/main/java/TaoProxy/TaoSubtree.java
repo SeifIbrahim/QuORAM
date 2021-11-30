@@ -25,6 +25,8 @@ public class TaoSubtree implements Subtree {
 	// deleted
 	private int lastLevelToSave;
 
+	public TaoInterface mInterface;
+
 	/**
 	 * @brief Default constructor
 	 */
@@ -363,8 +365,12 @@ public class TaoSubtree implements Subtree {
 		child.print();
 
 		// Check if we should delete child
+		mInterface.cacheLock.readLock().lock();
+		boolean childHasBlockInIncompleteCache = child.getFilledBlocks().stream()
+				.anyMatch(block -> mInterface.mBlocksInCache.containsKey(block.getBlockID()));
+		mInterface.cacheLock.readLock().unlock();
 		if (timestamp < minTime && !isBucketInSet(pathID, currentLevel, pathReqMultiSet)
-				&& currentLevel > lastLevelToSave) {
+				&& currentLevel > lastLevelToSave && !childHasBlockInIncompleteCache) {
 			TaoLogger.logDebug("Deleting because " + timestamp + " < " + minTime);
 			// We should delete child, check if it was the right or left child
 			if (directions[parentLevel]) {

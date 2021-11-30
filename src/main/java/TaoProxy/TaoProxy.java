@@ -65,7 +65,7 @@ public class TaoProxy implements Proxy {
 	protected CryptoUtil mCryptoUtil;
 
 	// A Subtree
-	protected Subtree mSubtree;
+	protected TaoSubtree mSubtree;
 
 	// A map that maps each leafID to the relative leaf ID it would have within a
 	// server partition
@@ -101,7 +101,7 @@ public class TaoProxy implements Proxy {
 	 * @param pathCreator
 	 * @param subtree
 	 */
-	public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, Subtree subtree, int unitId) {
+	public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, TaoSubtree subtree, int unitId) {
 		try {
 			// For trace purposes
 			TaoLogger.logLevel = TaoLogger.LOG_OFF;
@@ -154,8 +154,9 @@ public class TaoProxy implements Proxy {
 			mSequencer = new TaoSequencer(mMessageCreator, mPathCreator);
 			mProcessor = new TaoProcessor(this, mSequencer, mThreadGroup, mMessageCreator, mPathCreator, mCryptoUtil,
 					mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler, mUnitId);
-			mSequencer.mProcessor = mProcessor;
 			mInterface = new TaoInterface(mSequencer, mProcessor, mMessageCreator);
+			mSubtree.mInterface = mInterface;
+			mSequencer.mProcessor = mProcessor;
 			mProcessor.mInterface = mInterface;
 
 			requestQueue = new LinkedBlockingDeque<>();

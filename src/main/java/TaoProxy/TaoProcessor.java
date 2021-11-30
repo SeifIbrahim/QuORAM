@@ -638,11 +638,13 @@ public class TaoProcessor implements Processor {
 
 		// Move any block that is pointed to by the interface's incompleteCache
 		// to the stash
+		/*
 		ArrayList<Block> toPutInStash = decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet());
 		for (Block b : toPutInStash) {
 			TaoLogger.logInfo("Put block " + b.getBlockID() + " in stash");
 			mStash.addBlock(b);
 		}
+		*/
 
 		// Set the correct path ID
 		decryptedPath.setPathID(resp.getPathID());
@@ -870,11 +872,6 @@ public class TaoProcessor implements Processor {
 		}
 	}
 
-	/**
-	 * @brief Method to write data to a block with the given blockID
-	 * @param blockID
-	 * @param data
-	 */
 	public void writeDataToBlock(long blockID, byte[] data, Tag tag) {
 		TaoLogger.logDebug("Trying to write data for blockID " + blockID);
 		TaoLogger.logDebug("I think this is at path: " + mPositionMap.getBlockPosition(blockID));
@@ -897,19 +894,37 @@ public class TaoProcessor implements Processor {
 			return;
 		}
 
-		// Check for the block in the stash
-		Block targetBlock = mStash.getBlock(blockID);
+		while (true) {
+			// mSubtreeRWL.readLock().lock();
+			// Check if block is in subtree
+			Bucket targetBucket = mSubtree.getBucketWithBlock(blockID);
+			if (targetBucket != null) {
+				// If the bucket was found, we modify a block
+				if (tag.compareTo(targetBucket.getDataFromBlock(blockID).getTag()) >= 0) {
+					boolean success = targetBucket.modifyBlock(blockID, data, tag);
+					if (!success) {
+						TaoLogger.logForce("Found blockID " + blockID + " but failed to modify it.");
+					}
+				}
+				// mSubtreeRWL.readLock().unlock();
+				return;
+			} else {
+				// If we cannot find a bucket with the block, we check for the block in the
+				// stash
+				Block targetBlock = mStash.getBlock(blockID);
 
-		// If the block was found in the stash, we set the data for the block
-		if (targetBlock != null) {
-			if (tag.compareTo(targetBlock.getTag()) >= 0) {
-				targetBlock.setData(data);
-				targetBlock.setTag(tag);
+				// If the block was found in the stash, we set the data for the block
+				if (targetBlock != null) {
+					if (tag.compareTo(targetBlock.getTag()) >= 0) {
+						targetBlock.setData(data);
+						targetBlock.setTag(tag);
+					}
+					// mSubtreeRWL.readLock().unlock();
+					return;
+				}
 			}
-			return;
-		} else {
-			TaoLogger.logForce("Target block " + blockID + " not in stash! This shouldn't happen!");
-			TaoLogger.logForce(Thread.currentThread().getStackTrace().toString());
+			// mSubtreeRWL.readLock().unlock();
+			TaoLogger.logWarning("Trying to look for blockID " + blockID + " again... This is bad.");
 		}
 	}
 
@@ -1014,12 +1029,14 @@ public class TaoProcessor implements Processor {
 		ArrayList<Block> blocksToFlush = new ArrayList<>();
 		blocksToFlush.addAll(mStash.getAllBlocks());
 
+		/*
 		for (int i = 0; i < blocksToFlush.size(); i++) {
 			if (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
 				blocksToFlush.remove(i);
 				i--;
 			}
 		}
+		*/
 
 		if (mSubtree.getPath(pathID) == null) {
 			TaoLogger.logForce("Error from TaoProcessor.getHeap: path " + pathID + " is null");
