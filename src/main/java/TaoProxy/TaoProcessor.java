@@ -639,12 +639,11 @@ public class TaoProcessor implements Processor {
 		// Move any block that is pointed to by the interface's incompleteCache
 		// to the stash
 		/*
-		ArrayList<Block> toPutInStash = decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet());
-		for (Block b : toPutInStash) {
-			TaoLogger.logInfo("Put block " + b.getBlockID() + " in stash");
-			mStash.addBlock(b);
-		}
-		*/
+		 * ArrayList<Block> toPutInStash =
+		 * decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet()); for
+		 * (Block b : toPutInStash) { TaoLogger.logInfo("Put block " + b.getBlockID() +
+		 * " in stash"); mStash.addBlock(b); }
+		 */
 
 		// Set the correct path ID
 		decryptedPath.setPathID(resp.getPathID());
@@ -762,7 +761,12 @@ public class TaoProcessor implements Processor {
 						// Add block to stash and assign random path position
 						mStash.addBlock(newBlock);
 
+						// Assign block with blockID == req.getBlockID() to a new random path in
+						// position map
 						canPutInPositionMap = true;
+						int newPathID = mCryptoUtil.getRandomPathID();
+						TaoLogger.logInfo("Assigning blockID " + req.getBlockID() + " to path " + newPathID);
+						mPositionMap.setBlockPosition(req.getBlockID(), newPathID);
 					}
 				}
 
@@ -788,14 +792,6 @@ public class TaoProcessor implements Processor {
 
 			// Release lock
 			requestListLock.writeLock().unlock();
-
-			if (canPutInPositionMap) {
-				// Assign block with blockID == req.getBlockID() to a new random path in
-				// position map
-				int newPathID = mCryptoUtil.getRandomPathID();
-				TaoLogger.logInfo("Assigning blockID " + req.getBlockID() + " to path " + newPathID);
-				mPositionMap.setBlockPosition(req.getBlockID(), newPathID);
-			}
 		} else {
 			TaoLogger.logInfo("answerRequest requestID " + req.getRequestID() + " from host "
 					+ req.getClientAddress().getHostName() + " was a fake read, and real read has not responded yet");
@@ -1030,13 +1026,10 @@ public class TaoProcessor implements Processor {
 		blocksToFlush.addAll(mStash.getAllBlocks());
 
 		/*
-		for (int i = 0; i < blocksToFlush.size(); i++) {
-			if (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
-				blocksToFlush.remove(i);
-				i--;
-			}
-		}
-		*/
+		 * for (int i = 0; i < blocksToFlush.size(); i++) { if
+		 * (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
+		 * blocksToFlush.remove(i); i--; } }
+		 */
 
 		if (mSubtree.getPath(pathID) == null) {
 			TaoLogger.logForce("Error from TaoProcessor.getHeap: path " + pathID + " is null");
