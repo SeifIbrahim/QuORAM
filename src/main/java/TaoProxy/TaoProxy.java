@@ -470,6 +470,10 @@ public class TaoProxy implements Proxy {
 
 			// Asynchronously read message
 			channel.read(typeByteBuffer, null, new CompletionHandler<Integer, Void>() {
+				public CompletionHandler<Integer, Void> outerCompletionHandler() {
+					return this;
+				}
+
 				@Override
 				public void completed(Integer result, Void attachment) {
 					// Flip the byte buffer for reading
@@ -481,6 +485,7 @@ public class TaoProxy implements Proxy {
 					int[] typeAndLength;
 					try {
 						typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
+						typeByteBuffer.clear();
 					} catch (BufferUnderflowException e) {
 						TaoLogger.logForce("Lost connection to client");
 						try {
@@ -516,6 +521,9 @@ public class TaoProxy implements Proxy {
 									return;
 								}
 
+								// start processing the next message
+								channel.read(typeByteBuffer, null, outerCompletionHandler());
+
 								// Flip the byte buffer for reading
 								messageByteBuffer.flip();
 
@@ -531,8 +539,8 @@ public class TaoProxy implements Proxy {
 								TaoLogger.logInfo("Proxy will handle client request #" + clientReq.getRequestID());
 
 								// Serve the next client request
-								Runnable serializeProcedure = () -> serveClient(channel);
-								new Thread(serializeProcedure).start();
+								// Runnable serializeProcedure = () -> serveClient(channel);
+								// new Thread(serializeProcedure).start();
 
 								// When we receive a request, we first send it to the sequencer
 								// mInterface.handleRequest(clientReq);
@@ -544,7 +552,7 @@ public class TaoProxy implements Proxy {
 								}
 
 								// Handle request
-								onReceiveRequest(clientReq);
+								// onReceiveRequest(clientReq);
 							}
 
 							@Override
@@ -555,19 +563,24 @@ public class TaoProxy implements Proxy {
 					} else if (messageType == MessageTypes.PRINT_SUBTREE) {
 						// Print the subtree, used for debugging
 						mSubtree.printSubtree();
+						channel.read(typeByteBuffer, null, this);
 					} else if (messageType == MessageTypes.WRITE_STATS) {
 						mProfiler.writeStatistics();
+						channel.read(typeByteBuffer, null, this);
 					} else if (messageType == MessageTypes.INIT_LOAD_TEST) {
 						sNumClientRequests.set(0);
 						mProcessor.initLoadTest();
+						channel.read(typeByteBuffer, null, this);
 					} else if (messageType == MessageTypes.FINISH_LOAD_TEST) {
 						TaoLogger.logForce("Total Client Requests: " + sNumClientRequests.get());
 						mProcessor.finishLoadTest();
+						channel.read(typeByteBuffer, null, this);
 					}
 				}
 
 				@Override
 				public void failed(Throwable exc, Void attachment) {
+					exc.printStackTrace();
 					return;
 				}
 			});
