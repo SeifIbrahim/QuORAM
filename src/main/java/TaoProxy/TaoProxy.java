@@ -405,6 +405,10 @@ public class TaoProxy implements Proxy {
 	private void accessDaemon() {
 		try {
 			long blockID = 0;
+			long requestNum = 0;
+			long requestID;
+			// the daemon will have the max client id + 1
+			long clientID = TaoConfigs.MAX_CLIENT_ID + 1;
 			long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
 			long numDataItems = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
 			InetSocketAddress proxyAddress = new InetSocketAddress(InetAddress.getLocalHost().getHostAddress(),
@@ -416,7 +420,8 @@ public class TaoProxy implements Proxy {
 				// Create read request
 				ClientRequest readRequest = mMessageCreator.createClientRequest();
 				readRequest.setBlockID(blockID);
-				readRequest.setRequestID(-1);
+				requestID = (Long.highestOneBit(TaoConfigs.MAX_CLIENT_ID + 1) << 1) * (requestNum++) + clientID;
+				readRequest.setRequestID(requestID);
 				readRequest.setType(MessageTypes.CLIENT_READ_REQUEST);
 				readRequest.setClientAddress(proxyAddress);
 				readRequest.setChannel(clientChannel);
@@ -431,7 +436,8 @@ public class TaoProxy implements Proxy {
 				// Create write request
 				ClientRequest writeRequest = mMessageCreator.createClientRequest();
 				writeRequest.setBlockID(blockID);
-				writeRequest.setRequestID(-1);
+				requestID = (Long.highestOneBit(TaoConfigs.MAX_CLIENT_ID + 1) << 1) * (requestNum++) + clientID;
+				writeRequest.setRequestID(requestID);
 				writeRequest.setType(MessageTypes.CLIENT_WRITE_REQUEST);
 				writeRequest.setClientAddress(proxyAddress);
 				writeRequest.setChannel(clientChannel);

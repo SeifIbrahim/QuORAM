@@ -572,7 +572,7 @@ public class TaoClient implements Client {
 		// Because request IDs must be globally unique, we bit-shift the
 		// request ID to the left and add the client ID, thereby
 		// ensuring that no two clients use the same request ID
-		long requestID = (Long.highestOneBit(TaoConfigs.MAX_CLIENT_ID) << 1) * mRequestID.getAndAdd(1) + mClientID;
+		long requestID = (Long.highestOneBit(TaoConfigs.MAX_CLIENT_ID + 1) << 1) * mRequestID.getAndAdd(1) + mClientID;
 
 		// Create client request
 		ClientRequest request = mMessageCreator.createClientRequest();
