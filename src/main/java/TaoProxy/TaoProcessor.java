@@ -136,6 +136,8 @@ public class TaoProcessor implements Processor {
 
 	private boolean mDoingLoadTest = false;
 
+	private Executor mProcessorThreadPool;
+
 	/**
 	 * @brief Constructor
 	 * @param proxy
@@ -210,6 +212,9 @@ public class TaoProcessor implements Processor {
 			// Initialize maps
 			mProxyToServerChannelMap = new ConcurrentHashMap<>();
 			mAsyncProxyToServerSemaphoreMap = new ConcurrentHashMap<>();
+
+			mProcessorThreadPool = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
+			;
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -427,7 +432,7 @@ public class TaoProcessor implements Processor {
 											// Send response to proxy
 											Runnable serializeProcedure = () -> mProxy.onReceiveResponse(req, response,
 													fakeRead);
-											new Thread(serializeProcedure).start();
+											mProcessorThreadPool.execute(serializeProcedure);
 										}
 									}
 
@@ -545,7 +550,7 @@ public class TaoProcessor implements Processor {
 																	// Send response to proxy
 																	Runnable serializeProcedure = () -> mProxy
 																			.onReceiveResponse(req, response, fakeRead);
-																	new Thread(serializeProcedure).start();
+																	mProcessorThreadPool.execute(serializeProcedure);
 																}
 															}
 
@@ -1360,7 +1365,7 @@ public class TaoProcessor implements Processor {
 						e.printStackTrace();
 					}
 				};
-				new Thread(writebackRunnable).start();
+				mProcessorThreadPool.execute(writebackRunnable);
 			}
 		} catch (Exception e) {
 			e.printStackTrace();
