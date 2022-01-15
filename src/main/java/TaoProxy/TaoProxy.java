@@ -416,7 +416,7 @@ public class TaoProxy implements Proxy {
 			AsynchronousSocketChannel clientChannel = AsynchronousSocketChannel.open(mThreadGroup);
 			clientChannel.connect(proxyAddress).get();
 			while (true) {
-				TaoLogger.logForce("The Daemon is accessing blockID " + blockID);
+				TaoLogger.logInfo("The Daemon is accessing blockID " + blockID);
 				// Create read request
 				ClientRequest readRequest = mMessageCreator.createClientRequest();
 				readRequest.setBlockID(blockID);
