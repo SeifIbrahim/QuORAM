@@ -79,7 +79,7 @@ public class TaoServer implements Server {
 
 		try {
 			// Trace
-			TaoLogger.logLevel = TaoLogger.LOG_INFO;
+			TaoLogger.logLevel = TaoLogger.LOG_OFF;
 
 			// No passed in properties file, will use defaults
 			TaoConfigs.initConfiguration();
@@ -583,7 +583,7 @@ public class TaoServer implements Server {
 							Future writeToProxy = channel.write(returnMessageBuffer);
 							writeToProxy.get();
 						}
-						TaoLogger.logDebug("Sent response");
+						TaoLogger.logDebug("Sent write response");
 
 						// Clear buffer
 						returnMessageBuffer = null;

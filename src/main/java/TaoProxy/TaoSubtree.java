@@ -6,6 +6,7 @@ import Configuration.Utility;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * @brief Class that represents the subtree component of the proxy
@@ -26,6 +27,8 @@ public class TaoSubtree implements Subtree {
 	private int lastLevelToSave;
 
 	public TaoInterface mInterface;
+
+	public ConcurrentMap<Long, Block> mOrphanBlocks;
 
 	/**
 	 * @brief Default constructor
@@ -206,6 +209,21 @@ public class TaoSubtree implements Subtree {
 		// Keep track of where on the path we are
 		int bucketLevel = 1;
 		for (Boolean right : pathDirection) {
+			if (mOrphanBlocks != null) {
+				// If we a block in the path is in our orphan blocks we replace
+				// it with the orphan block and remove the orphan block
+				Bucket bucket = path.getBucket(bucketLevel);
+				Block[] blocks = bucket.getBlocks();
+				for (int i = 0; i < blocks.length; i++) {
+					if (bucket.checkBlockFilled(i)) {
+						Block orphanBlock = mOrphanBlocks.get(blocks[i].getBlockID());
+						if (orphanBlock != null) {
+							blocks[i] = orphanBlock;
+							mOrphanBlocks.remove(blocks[i].getBlockID());
+						}
+					}
+				}
+			}
 			// Determine whether the path is turning left or right from current bucket
 			if (right) {
 				// Attempt to initialize right bucket
@@ -366,11 +384,14 @@ public class TaoSubtree implements Subtree {
 
 		// Check if we should delete child
 		mInterface.cacheLock.readLock().lock();
-		boolean childHasBlockInIncompleteCache = child.getFilledBlocks().stream()
-				.anyMatch(block -> mInterface.mBlocksInCache.containsKey(block.getBlockID()));
+		for (Block block : child.getFilledBlocks()) {
+			if (mInterface.mBlocksInCache.containsKey(block.getBlockID())) {
+				mOrphanBlocks.put(block.getBlockID(), block);
+			}
+		}
 		mInterface.cacheLock.readLock().unlock();
 		if (timestamp < minTime && !isBucketInSet(pathID, currentLevel, pathReqMultiSet)
-				&& currentLevel > lastLevelToSave && !childHasBlockInIncompleteCache) {
+				&& currentLevel > lastLevelToSave) {
 			TaoLogger.logDebug("Deleting because " + timestamp + " < " + minTime);
 			// We should delete child, check if it was the right or left child
 			if (directions[parentLevel]) {

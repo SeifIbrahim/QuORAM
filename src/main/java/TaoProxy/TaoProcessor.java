@@ -137,10 +137,14 @@ public class TaoProcessor implements Processor {
 	// number of blocks in the proxy bucketed by time interval
 	public ArrayList<ArrayList<Long>> mBucketedSubtreeBlocks = new ArrayList<ArrayList<Long>>();
 	public ArrayList<ArrayList<Long>> mBucketedStashBlocks = new ArrayList<ArrayList<Long>>();
+	public ArrayList<ArrayList<Long>> mBucketedOrphanBlocks = new ArrayList<ArrayList<Long>>();
 
 	private boolean mDoingLoadTest = false;
 
 	private Executor mProcessorThreadPool;
+
+	// Holds blocks that were deleted from the subtree before the write came
+	private ConcurrentMap<Long, Block> mOrphanBlocks;
 
 	/**
 	 * @brief Constructor
@@ -193,8 +197,11 @@ public class TaoProcessor implements Processor {
 			// Create requested path multiset
 			mPathReqMultiSet = ConcurrentHashMultiset.create();
 
+			mOrphanBlocks = new ConcurrentHashMap<>();
+
 			// Assign subtree
 			mSubtree = subtree;
+			((TaoSubtree) subtree).mOrphanBlocks = mOrphanBlocks;
 
 			// Create counter the keep track of number of flushes
 			mWriteBackCounter = new AtomicLong();
@@ -244,6 +251,14 @@ public class TaoProcessor implements Processor {
 			mBucketedStashBlocks
 					.get((int) ((System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL))
 					.add((long) ((TaoStash) mStash).mStash.size());
+
+			while (mBucketedOrphanBlocks.size() < (int) (1
+					+ (System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL)) {
+				mBucketedOrphanBlocks.add(new ArrayList<Long>());
+			}
+			mBucketedOrphanBlocks
+					.get((int) ((System.currentTimeMillis() - mLoadTestStartTime) / NUM_BLOCKS_SAMPLE_INTERVAL))
+					.add((long) mOrphanBlocks.size());
 		}
 	}
 
@@ -445,18 +460,21 @@ public class TaoProcessor implements Processor {
 
 									@Override
 									public void failed(Throwable exc, Void attachment) {
+										exc.printStackTrace();
 									}
 								});
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
+								exc.printStackTrace();
 							}
 						});
 					}
 
 					@Override
 					public void failed(Throwable exc, Void attachment) {
+						exc.printStackTrace();
 					}
 				});
 			} else {
@@ -524,11 +542,10 @@ public class TaoProcessor implements Processor {
 																}
 
 																// Close channel
-																try {
-																	newChannelToServer.close();
-																} catch (IOException e) {
-																	e.printStackTrace();
-																}
+																/*
+																 * try { newChannelToServer.close(); } catch
+																 * (IOException e) { e.printStackTrace(); }
+																 */
 
 																// Flip the byte buffer for reading
 																pathInBytes.flip();
@@ -563,24 +580,28 @@ public class TaoProcessor implements Processor {
 
 															@Override
 															public void failed(Throwable exc, Void attachment) {
+																exc.printStackTrace();
 															}
 														});
 											}
 
 											@Override
 											public void failed(Throwable exc, Void attachment) {
+												exc.printStackTrace();
 											}
 										});
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
+								exc.printStackTrace();
 							}
 						});
 					}
 
 					@Override
 					public void failed(Throwable exc, Object attachment) {
+						exc.printStackTrace();
 					}
 				});
 			}
@@ -918,10 +939,13 @@ public class TaoProcessor implements Processor {
 				return;
 			} else {
 				// If we cannot find a bucket with the block, we check for the block in the
-				// stash
+				// stash and orphan blocks
 				Block targetBlock = mStash.getBlock(blockID);
+				if (targetBlock == null) {
+					targetBlock = mOrphanBlocks.get(blockID);
+				}
 
-				// If the block was found in the stash, we set the data for the block
+				// If the block was found in the orphan blocks, we set the data for the block
 				if (targetBlock != null) {
 					if (tag.compareTo(targetBlock.getTag()) >= 0) {
 						targetBlock.setData(data);
@@ -1008,7 +1032,7 @@ public class TaoProcessor implements Processor {
 				mStash.addBlock(blockHeap.poll());
 			}
 		}
-		
+
 		// Add this path to the write queue
 		synchronized (mWriteQueue) {
 			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
@@ -1244,7 +1268,8 @@ public class TaoProcessor implements Processor {
 
 				// Create and run server
 				Runnable writebackRunnable = () -> {
-					try (AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup)) {
+					try {
+						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
 						TaoLogger.logDebug("Going to do writeback for server " + serverIndexFinal);
 
 						// mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
@@ -1364,19 +1389,25 @@ public class TaoProcessor implements Processor {
 														}
 													}
 												}
-											} else {
 											}
 										}
 
 										@Override
 										public void failed(Throwable exc, Void attachment) {
+											TaoLogger.logForce(
+													"Failed to read the rest of the server response after writing back");
+											exc.printStackTrace();
 										}
 									});
+								} else {
+									TaoLogger.logForce("Got unexpected message type from the server");
 								}
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
+								TaoLogger.logForce("Failed to read server response header after writing back");
+								exc.printStackTrace();
 							}
 						});
 					} catch (Exception e) {
@@ -1416,6 +1447,7 @@ public class TaoProcessor implements Processor {
 		mDoingLoadTest = true;
 		mBucketedSubtreeBlocks.clear();
 		mBucketedStashBlocks.clear();
+		mBucketedOrphanBlocks.clear();
 		mLoadTestStartTime = System.currentTimeMillis();
 	}
 
@@ -1437,6 +1469,14 @@ public class TaoProcessor implements Processor {
 					mBucketedStashBlocks.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
 		}
 		TaoLogger.logForce(numStashBlocksBuilder.toString());
+
+		TaoLogger.logForce("Number of Orphan Blocks over Time:");
+		StringBuilder numOrphanBlocksBuilder = new StringBuilder();
+		for (int i = 0; i < mBucketedOrphanBlocks.size(); i++) {
+			numOrphanBlocksBuilder.append(String.format("(%d,%f)", i * NUM_BLOCKS_SAMPLE_INTERVAL / 1000,
+					mBucketedOrphanBlocks.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
+		}
+		TaoLogger.logForce(numOrphanBlocksBuilder.toString());
 	}
 
 }
