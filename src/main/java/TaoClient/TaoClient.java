@@ -322,6 +322,7 @@ public class TaoClient implements Client {
 
 						@Override
 						public void failed(Throwable exc, Void attachment) {
+							exc.printStackTrace();
 						}
 					});
 				}
@@ -329,6 +330,7 @@ public class TaoClient implements Client {
 
 			@Override
 			public void failed(Throwable exc, Void attachment) {
+				exc.printStackTrace();
 			}
 		});
 	}

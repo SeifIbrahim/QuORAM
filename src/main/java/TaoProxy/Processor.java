@@ -25,13 +25,13 @@ public interface Processor {
      * @brief Flush stash to path
      * @param pathID
      */
-    void flush(long pathID, boolean update);
+    void flush(long pathID);
 
     /**
      * @brief Write paths from subtree back to server
      * @param timeStamp
      */
-    void writeBack(long timeStamp);
+    void writeBack();
 
     void writeDataToBlock(long blockID, byte[] data, Tag tag);
 }

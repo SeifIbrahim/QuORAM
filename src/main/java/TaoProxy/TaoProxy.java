@@ -266,9 +266,9 @@ public class TaoProxy implements Proxy {
 		// Even though we flush after o_write we still need to flush here in case the
 		// block gets reassigned to a different path and we want to be able to find it
 		// at the correct location
-		mProcessor.flush(resp.getPathID(), false);
+		mProcessor.flush(resp.getPathID());
 		// mSubtreeLock.unlock();
-		mProcessor.writeBack(TaoConfigs.WRITE_BACK_THRESHOLD);
+		mProcessor.writeBack();
 	}
 
 	@Override

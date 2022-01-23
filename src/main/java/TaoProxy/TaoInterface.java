@@ -119,14 +119,15 @@ public class TaoInterface {
             removeOpFromCache(opID);
             cacheLock.writeLock().unlock();
             
-			// flush the path
+			// update path timestamps
             long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);
             if (pathID == -1) {
             	TaoLogger.logForce("Path ID for blockID " + blockID
             			+ " was unmapped during o_write. This should never happen!");
             	System.exit(1);
             }
-            mProcessor.flush(pathID, true);
+            // queues this path to be written back and updates the block timestamp
+            mProcessor.update_timestamp(pathID);
 
 
             // Create a ProxyResponse

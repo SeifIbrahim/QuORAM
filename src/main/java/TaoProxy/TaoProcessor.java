@@ -18,6 +18,7 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
@@ -61,7 +62,10 @@ public class TaoProcessor implements Processor {
 	public Subtree mSubtree;
 
 	// Counter used to know when we should writeback
-	protected long mWriteBackCounter;
+	protected AtomicLong mWriteBackCounter;
+
+	// Timestamp that is incremented whenever we update the subtree
+	protected AtomicLong mTimestamp;
 
 	// Used to keep track of when the next writeback should occur
 	// When mWriteBackCounter == mNextWriteBack, a writeback should occur
@@ -193,7 +197,10 @@ public class TaoProcessor implements Processor {
 			mSubtree = subtree;
 
 			// Create counter the keep track of number of flushes
-			mWriteBackCounter = 0;
+			mWriteBackCounter = new AtomicLong();
+
+			mTimestamp = new AtomicLong();
+
 			mNextWriteBack = TaoConfigs.WRITE_BACK_THRESHOLD;
 
 			// Create list of queues of paths to be written
@@ -661,7 +668,7 @@ public class TaoProcessor implements Processor {
 		// not delete an ancestor node
 		// of a node that has been flushed to
 		mSubtreeRWL.writeLock().lock();
-		mSubtree.addPath(decryptedPath, mWriteBackCounter);
+		mSubtree.addPath(decryptedPath, mTimestamp.get());
 
 		// Profiling
 		// mProfiler.addPathTime(System.currentTimeMillis() - preAddPathTime);
@@ -930,7 +937,7 @@ public class TaoProcessor implements Processor {
 	}
 
 	@Override
-	public void flush(long pathID, boolean update) {
+	public void flush(long pathID) {
 		mSubtreeRWL.writeLock().lock();
 
 		TaoLogger.logInfo("Doing a flush for pathID " + pathID);
@@ -969,14 +976,8 @@ public class TaoProcessor implements Processor {
 				// If the block can be inserted at this level, get the bucket
 				Bucket pathBucket = pathToFlush.getBucket(level);
 
-				long timestamp = pathBucket.getUpdateTime();
-				if (update) {
-					// update the bucket's timestamp
-					timestamp = mWriteBackCounter;
-				}
-
 				// Try to add this block into the path and update the bucket's timestamp
-				if (pathBucket.addBlock(currentBlock, timestamp)) {
+				if (pathBucket.addBlock(currentBlock, mTimestamp.get())) {
 					// If we have successfully added the block to the bucket, we remove the block
 					// from stash
 					mStash.removeBlock(currentBlock);
@@ -985,8 +986,7 @@ public class TaoProcessor implements Processor {
 					mSubtree.mapBlockToBucket(currentBlock.getBlockID(), pathBucket);
 
 					// If add was successful, remove block from heap and move on to next block
-					// without decrementing the
-					// level we are adding to
+					// without decrementing the level we are adding to
 					blockHeap.poll();
 					continue;
 				}
@@ -996,28 +996,46 @@ public class TaoProcessor implements Processor {
 			level--;
 		}
 
-		// Add remaining blocks in heap to stash
-		if (!blockHeap.isEmpty()) {
-			while (!blockHeap.isEmpty()) {
-				mStash.addBlock(blockHeap.poll());
-			}
-		}
-
 		// Unlock the path
 		// pathToFlush.unlockPath();
 
 		// Release subtree reader's lock
 		mSubtreeRWL.writeLock().unlock();
 
-		if (update) {
-			// Add this path to the write queue
-			synchronized (mWriteQueue) {
-				TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
-				mWriteQueue.add(pathID);
-				// Increment the amount of times we have flushed
-				mWriteBackCounter++;
+		// Add remaining blocks in heap to stash
+		if (!blockHeap.isEmpty()) {
+			while (!blockHeap.isEmpty()) {
+				mStash.addBlock(blockHeap.poll());
 			}
 		}
+		
+		// Add this path to the write queue
+		synchronized (mWriteQueue) {
+			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
+			mWriteQueue.add(pathID);
+		}
+		mWriteBackCounter.getAndIncrement();
+
+		// update our timestamp since we moved blocks around
+		mTimestamp.getAndIncrement();
+	}
+
+	public void update_timestamp(long pathID) {
+		// update the path timestamp since a block on it was just written
+		mSubtreeRWL.writeLock().lock();
+		Path pathToUpdate = mSubtree.getPath(pathID);
+		if (pathToUpdate == null) {
+			mSubtreeRWL.writeLock().unlock();
+			return;
+		}
+		Bucket buckets[] = pathToUpdate.getBuckets();
+		for (Bucket bucket : buckets) {
+			if (bucket != null) {
+				bucket.setUpdateTime(mTimestamp.get());
+			}
+		}
+		mSubtreeRWL.writeLock().unlock();
+		mTimestamp.getAndIncrement();
 	}
 
 	/**
@@ -1061,12 +1079,12 @@ public class TaoProcessor implements Processor {
 	}
 
 	@Override
-	public void writeBack(long timeStamp) {
+	public void writeBack() {
 		// Variable to keep track of the current mNextWriteBack
 		long writeBackTime;
 
 		// Check to see if a write back should be started
-		if (mWriteBackCounter >= mNextWriteBack) {
+		if (mWriteBackCounter.get() >= mNextWriteBack) {
 			// Multiple threads might pass first condition, must acquire lock in order to be
 			// the thread that triggers
 			// the write back
@@ -1075,9 +1093,9 @@ public class TaoProcessor implements Processor {
 				// thread has already
 				// acquired the lock and incremented mNextWriteBack, so make sure that condition
 				// still holds
-				if (mWriteBackCounter >= mNextWriteBack) {
+				if (mWriteBackCounter.get() >= mNextWriteBack) {
 					// Keep track of the time
-					writeBackTime = mNextWriteBack;
+					writeBackTime = mTimestamp.get();
 
 					// Increment the next time we should write trigger write back
 					mNextWriteBack += TaoConfigs.WRITE_BACK_THRESHOLD;
