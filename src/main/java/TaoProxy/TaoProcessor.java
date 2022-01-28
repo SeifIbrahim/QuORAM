@@ -1033,13 +1033,6 @@ public class TaoProcessor implements Processor {
 			}
 		}
 
-		// Add this path to the write queue
-		synchronized (mWriteQueue) {
-			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
-			mWriteQueue.add(pathID);
-		}
-		mWriteBackCounter.getAndIncrement();
-
 		// update our timestamp since we moved blocks around
 		mTimestamp.getAndIncrement();
 	}
@@ -1059,6 +1052,14 @@ public class TaoProcessor implements Processor {
 			}
 		}
 		mSubtreeRWL.writeLock().unlock();
+		
+		// Add this path to the write queue
+		synchronized (mWriteQueue) {
+			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
+			mWriteQueue.add(pathID);
+		}
+		mWriteBackCounter.getAndIncrement();
+
 		mTimestamp.getAndIncrement();
 	}
 
