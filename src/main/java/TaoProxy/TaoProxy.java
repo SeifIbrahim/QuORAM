@@ -26,6 +26,7 @@ import java.nio.channels.CompletionHandler;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.Callable;
 import java.util.concurrent.CompletionService;
@@ -35,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.List;
 import java.util.ArrayList;
@@ -404,18 +406,26 @@ public class TaoProxy implements Proxy {
 
 	private void accessDaemon() {
 		try {
-			long blockID = 0;
+			final long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
+			final long numDataItems = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
+			long blockID = ThreadLocalRandom.current().nextLong(numDataItems);
 			long requestNum = 0;
 			long requestID;
 			// the daemon will have the max client id + 1
 			long clientID = TaoConfigs.MAX_CLIENT_ID + 1;
-			long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
-			long numDataItems = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
 			InetSocketAddress proxyAddress = new InetSocketAddress(InetAddress.getLocalHost().getHostAddress(),
 					TaoConfigs.ORAM_UNITS.get(mUnitId).proxyPort);
 			AsynchronousSocketChannel clientChannel = AsynchronousSocketChannel.open(mThreadGroup);
 			clientChannel.connect(proxyAddress).get();
 			while (true) {
+				// If we have orphan blocks that are not in the incomplete cache prioritize
+				// those
+				for (Map.Entry<Long, Block> entry : mSubtree.mOrphanBlocks.entrySet()) {
+					if (!mInterface.mBlocksInCache.containsKey(entry.getKey())) {
+						blockID = entry.getKey();
+					}
+				}
+				// Otherwise pick randomly
 				TaoLogger.logInfo("The Daemon is accessing blockID " + blockID);
 				// Create read request
 				ClientRequest readRequest = mMessageCreator.createClientRequest();
