@@ -62,8 +62,8 @@ public class TaoServer implements Server {
 	// shared stack of file pointers
 	protected Stack<RandomAccessFile> mFilePointers;
 
-	protected Map<ProxyRequest, Long> mReadStartTimes;
-	protected Map<ProxyRequest, Long> mWriteStartTimes;
+	// protected Map<ProxyRequest, Long> mReadStartTimes;
+	// protected Map<ProxyRequest, Long> mWriteStartTimes;
 
 	protected int mUnitId = 0;
 
@@ -74,8 +74,8 @@ public class TaoServer implements Server {
 		mUnitId = unitId;
 
 		// Profiling
-		mReadStartTimes = new ConcurrentHashMap<>();
-		mWriteStartTimes = new ConcurrentHashMap<>();
+		// mReadStartTimes = new ConcurrentHashMap<>();
+		// mWriteStartTimes = new ConcurrentHashMap<>();
 
 		try {
 			// Trace
@@ -450,16 +450,17 @@ public class TaoServer implements Server {
 			// Check message type
 			if (messageType == MessageTypes.PROXY_READ_REQUEST) {
 				// Profiling
-				mReadStartTimes.put(proxyReq, System.currentTimeMillis());
+				// mReadStartTimes.put(proxyReq, System.currentTimeMillis());
 
 				mReadPathExecutor.submit(() -> {
 					TaoLogger.logDebug("Serving a read request");
 					// Read the request path
 					byte[] returnPathData = readPath(proxyReq.getPathID());
 
-					long startTime = mReadStartTimes.get(proxyReq);
-					mReadStartTimes.remove(proxyReq);
-					long time = System.currentTimeMillis() - startTime;
+					// long startTime = mReadStartTimes.get(proxyReq);
+					// mReadStartTimes.remove(proxyReq);
+					// long time = System.currentTimeMillis() - startTime;
+					long time = 0;
 
 					// Create a server response
 					ServerResponse readResponse = mMessageCreator.createServerResponse();
@@ -507,7 +508,7 @@ public class TaoServer implements Server {
 				});
 			} else if (messageType == MessageTypes.PROXY_WRITE_REQUEST) {
 				// Profiling
-				mWriteStartTimes.put(proxyReq, System.currentTimeMillis());
+				// mWriteStartTimes.put(proxyReq, System.currentTimeMillis());
 
 				mWriteBackExecutor.submit(() -> {
 					TaoLogger.logDebug("Serving a write request");
@@ -555,9 +556,10 @@ public class TaoServer implements Server {
 						endIndex += pathSize;
 					}
 
-					long startTime = mWriteStartTimes.get(proxyReq);
-					mWriteStartTimes.remove(proxyReq);
-					long time = System.currentTimeMillis() - startTime;
+					// long startTime = mWriteStartTimes.get(proxyReq);
+					// mWriteStartTimes.remove(proxyReq);
+					// long time = System.currentTimeMillis() - startTime;
+					long time = 0;
 
 					// Create a server response
 					ServerResponse writeResponse = mMessageCreator.createServerResponse();

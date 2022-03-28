@@ -280,14 +280,15 @@ public class TaoProcessor implements Processor {
 			// We make sure the request list and read/write lock for maps are not null
 			List<ClientRequest> requestList = new ArrayList<>();
 			ReentrantReadWriteLock requestListLock = new ReentrantReadWriteLock();
-			mRequestMap.putIfAbsent(req.getBlockID(), requestList);
 			mRequestLockMap.putIfAbsent(req.getBlockID(), requestListLock);
-			requestList = mRequestMap.get(req.getBlockID());
 			requestListLock = mRequestLockMap.get(req.getBlockID());
 
 			// Acquire a read lock to ensure we do not assign a fake read that will not be
 			// answered to
-			requestListLock.readLock().lock();
+			requestListLock.writeLock().lock();
+
+			mRequestMap.putIfAbsent(req.getBlockID(), requestList);
+			requestList = mRequestMap.get(req.getBlockID());
 
 			// Check if there is any current request for this block ID
 			if (requestList.isEmpty()) {
@@ -315,7 +316,7 @@ public class TaoProcessor implements Processor {
 			requestList.add(req);
 
 			// Unlock
-			requestListLock.readLock().unlock();
+			requestListLock.writeLock().unlock();
 
 			TaoLogger.logInfo("Doing a read for pathID " + pathID + " and block ID " + req.getBlockID() + "("
 					+ mPositionMap.getBlockPosition(req.getBlockID()) + ")");
@@ -727,7 +728,6 @@ public class TaoProcessor implements Processor {
 			TaoLogger.logDebug("answerRequest requestID " + req.getRequestID() + " from host "
 					+ req.getClientAddress().getHostName() + " for blockID " + req.getBlockID() + " was a real read");
 			// Get a list of all the requests that have requested this block ID
-			List<ClientRequest> requestList = mRequestMap.get(req.getBlockID());
 			ReentrantReadWriteLock requestListLock = mRequestLockMap.get(req.getBlockID());
 
 			// Figure out if this is the first time the element has appeared
@@ -739,6 +739,8 @@ public class TaoProcessor implements Processor {
 			// Acquire write lock so we do not respond to all requests while accidentally
 			// missing a soon to be sent fake read
 			requestListLock.writeLock().lock();
+
+			List<ClientRequest> requestList = mRequestMap.get(req.getBlockID());
 
 			// Loop through each request in list of requests for this block
 			while (!requestList.isEmpty()) {
