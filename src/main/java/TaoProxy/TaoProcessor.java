@@ -1272,12 +1272,12 @@ public class TaoProcessor implements Processor {
 				// Create and run server
 				Runnable writebackRunnable = () -> {
 					try {
-						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
 						TaoLogger.logDebug("Going to do writeback for server " + serverIndexFinal);
 
 						// mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
 
 						// Create channel and connect to server
+						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
 						Future<Void> connection = channel.connect(serverAddr);
 						connection.get();
 

@@ -39,6 +39,7 @@ public class TaoServer implements Server {
 	protected int mServerTreeHeight;
 	// An array that will represent the tree, and keep track of the most recent
 	// timestamp of a particular bucket
+	//TODO this array may be to large to store in memory
 	protected long[] mMostRecentTimestamp;
 
 	// We will lock at a bucket level when operating on file
