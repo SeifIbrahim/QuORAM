@@ -4,6 +4,8 @@ import Configuration.ArgumentParser;
 import Configuration.TaoConfigs;
 import Messages.*;
 import TaoProxy.*;
+
+import com.google.common.math.Quantiles;
 import com.google.common.primitives.Bytes;
 
 import java.io.*;
@@ -89,7 +91,7 @@ public class TaoClient implements Client {
 	// time interval for bucketting throughputs and response times
 	public static int SAMPLE_INTERVAL = 10 * 1000;
 
-	public static final int TIMEOUT_DELAY = 2000;
+	public static final int TIMEOUT_DELAY = 5000;
 
 	public static ArrayList<Double> sThroughputs = new ArrayList<>();
 
@@ -105,8 +107,8 @@ public class TaoClient implements Client {
 	public ReadWriteLock backoffLock = new ReentrantReadWriteLock();
 
 	public static boolean randomQuorum;
-	// how many of the most recent latencies we should keep around to average
-	public static final int NUM_LATENCIES = 100;
+	// how many of the most recent latencies we should keep around to get the median
+	public static final int NUM_LATENCIES = 1000;
 	// keeps a list of the most recent NUM_LATENCIES for each site (or replica)
 	public Map<Integer, Deque<Long>> mSiteLatencies = new HashMap<Integer, Deque<Long>>();
 	public ReadWriteLock mSiteLatenciesLock = new ReentrantReadWriteLock();
@@ -384,11 +386,16 @@ public class TaoClient implements Client {
 			// pick the available site with the lowest latency by averaging the latency
 			mSiteLatenciesLock.readLock().lock();
 			Optional<Entry<Integer, Deque<Long>>> site_entry = mSiteLatencies.entrySet().stream()
-					.filter(entry -> available.contains(entry.getKey())).min(Comparator.comparingDouble(
-							entry -> entry.getValue().stream().mapToDouble(a -> a).average().orElse(Double.MAX_VALUE)));
+					.filter(entry -> available.contains(entry.getKey()) && !entry.getValue().isEmpty())
+					.min(Comparator.comparingDouble(entry -> Quantiles.median().compute(entry.getValue())));
 			mSiteLatenciesLock.readLock().unlock();
 			// it's possible that we don't have latencies for any of the available sites
 			if (site_entry.isPresent()) {
+				if(TaoLogger.logLevel == TaoLogger.LOG_INFO) {
+					// want to avoid recomputing the median if logging is off
+				TaoLogger.logInfo("Selected unit " + site_entry.get().getKey() + " with median latency: "
+						+ Quantiles.median().compute(site_entry.get().getValue()) + " ms");
+				}
 				return site_entry.get().getKey();
 			}
 		}
