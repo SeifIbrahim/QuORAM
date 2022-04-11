@@ -164,9 +164,9 @@ public class InsecureTaoClient extends TaoClient {
 			TaoLogger.logForce("Clients did not terminate before the timeout elapsed.");
 		}
 
-		Collections.sort(sResponseTimes);
-		TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
-		TaoLogger.logForce("Response times: " + sResponseTimes.toString());
+		// Collections.sort(sResponseTimes);
+		// TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
+		// TaoLogger.logForce("Response times: " + sResponseTimes.toString());
 
 		double throughputTotal = 0;
 		for (Double l : sThroughputs) {
