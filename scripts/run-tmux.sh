@@ -60,7 +60,7 @@ _tmux_process_command $PROXY_SESSION 2 'C-c' "./scripts/run-proxy.sh 2"
 echo 'Proxies launched.'
 
 # launch client
-num_clients=50
+num_clients=10
 num_warmup=1
 loadtest_length=$((60*1000))
 rw_ratio=0.5
