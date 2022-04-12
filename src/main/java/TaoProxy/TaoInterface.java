@@ -5,6 +5,8 @@ import Messages.*;
 import Configuration.TaoConfigs;
 
 import com.google.common.primitives.Bytes;
+
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
@@ -59,19 +61,33 @@ public class TaoInterface {
 
 		if (type == MessageTypes.CLIENT_READ_REQUEST) {
 			TaoLogger.logInfo("Got a read request with opID " + opID);
-			cacheLock.writeLock().lock();
 
+			ArrayList<Long> evictedPathIDs = new ArrayList<Long>();
+
+			cacheLock.writeLock().lock();
 			// Evict oldest entry if cache is full
 			while (mIncompleteCache.size() >= TaoConfigs.INCOMPLETE_CACHE_LIMIT) {
 				TaoLogger.logInfo("Cache size: " + mIncompleteCache.size());
 				TaoLogger.logInfo("Cache limit: " + TaoConfigs.INCOMPLETE_CACHE_LIMIT);
 				OperationID opToRemove = cacheOpsInOrder.poll();
 				TaoLogger.logInfo("Evicting " + opToRemove);
-				// add the path for the evicted block to the write queue and increment # paths
-				// this is to prevent unbounded memory in the case that no o_write ever comes to
-				// trigger writeback
 				long evictedBlockID = mIncompleteCache.get(opID);
 				long evictedPathID = mProcessor.mPositionMap.getBlockPosition(evictedBlockID);
+				evictedPathIDs.add(evictedPathID);
+				removeOpFromCache(opToRemove);
+			}
+
+			mIncompleteCache.put(opID, blockID);
+			mBlocksInCache.put(blockID, mBlocksInCache.getOrDefault(blockID, 0) + 1);
+			TaoLogger.logInfo("There are now " + mBlocksInCache.get(blockID) + " instances of block " + blockID
+					+ " in the incomplete cache");
+			cacheOpsInOrder.add(opID);
+			cacheLock.writeLock().unlock();
+
+			// add the paths for the evicted blocks to the write queue and increment # paths
+			// this is to prevent unbounded memory in the case that no o_write ever comes to
+			// trigger writeback
+			for (Long evictedPathID : evictedPathIDs) {
 				if (evictedPathID != -1) {
 					// Add this path to the write queue
 					synchronized (mProcessor.mWriteQueue) {
@@ -82,16 +98,7 @@ public class TaoInterface {
 					mProcessor.mWriteBackCounter.getAndIncrement();
 					mProcessor.writeBack();
 				}
-
-				removeOpFromCache(opToRemove);
 			}
-
-			mIncompleteCache.put(opID, blockID);
-			mBlocksInCache.put(blockID, mBlocksInCache.getOrDefault(blockID, 0) + 1);
-			TaoLogger.logInfo("There are now " + mBlocksInCache.get(blockID) + " instances of block " + blockID
-					+ " in the incomplete cache");
-			cacheOpsInOrder.add(opID);
-			cacheLock.writeLock().unlock();
 
 			// If the block we just added to the incomplete cache exists in the subtree,
 			// move it to the stash
@@ -108,45 +115,47 @@ public class TaoInterface {
 			mSequencer.onReceiveRequest(clientReq);
 		} else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
 			TaoLogger.logInfo("Got a write request with opID " + opID);
-			cacheLock.readLock().lock();// Create a ProxyResponse
+			// Create a ProxyResponse
 			ProxyResponse response = mMessageCreator.createProxyResponse();
 			response.setClientRequestID(clientReq.getRequestID());
 			response.setWriteStatus(true);
 			response.setReturnTag(new Tag());
+			cacheLock.readLock().lock();
 			if (!mIncompleteCache.keySet().contains(opID)) {
 				TaoLogger.logInfo("mIncompleteCache does not contain opID " + opID + "!");
 				TaoLogger.logInfo(mIncompleteCache.keySet().toString());
-				cacheLock.readLock().unlock();
 				response.setFailed(true);
+				cacheLock.readLock().unlock();
 			} else {
 				TaoLogger.logInfo("Found opID " + opID + " in cache");
-			}
-			// if this was a dummy request from the daemon we don't want to overwrite the
-			// block
-			if (clientReq.getRequestID() != -1) {
-				// Update block in tree
-				TaoLogger.logInfo("About to write to block");
-				mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
-				TaoLogger.logInfo("Wrote data to block");
-			}
-			// this needs to be here so that we can guarantee the block doesn't get deleted
-			// before we write to it
-			cacheLock.readLock().unlock();
 
-			// Remove operation from incomplete cache
-			cacheLock.writeLock().lock();
-			removeOpFromCache(opID);
-			cacheLock.writeLock().unlock();
+				// if this was a dummy request from the daemon we don't want to overwrite the
+				// block
+				if (clientReq.getRequestID() != -1) {
+					// Update block in tree
+					TaoLogger.logInfo("About to write to block");
+					mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
+					TaoLogger.logInfo("Wrote data to block");
+				}
+				// this needs to be here so that we can guarantee the block doesn't get deleted
+				// before we write to it
+				cacheLock.readLock().unlock();
 
-			// update path timestamps
-			long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);
-			if (pathID == -1) {
-				TaoLogger.logForce(
-						"Path ID for blockID " + blockID + " was unmapped during o_write. This should never happen!");
-				System.exit(1);
+				// Remove operation from incomplete cache
+				cacheLock.writeLock().lock();
+				removeOpFromCache(opID);
+				cacheLock.writeLock().unlock();
+
+				// update path timestamps
+				long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);
+				if (pathID == -1) {
+					TaoLogger.logForce("Path ID for blockID " + blockID
+							+ " was unmapped during o_write. This should never happen!");
+					System.exit(1);
+				}
+				// queues this path to be written back and updates the block timestamp
+				mProcessor.update_timestamp(pathID);
 			}
-			// queues this path to be written back and updates the block timestamp
-			mProcessor.update_timestamp(pathID);
 
 			// Get channel
 			AsynchronousSocketChannel clientChannel = clientReq.getChannel();

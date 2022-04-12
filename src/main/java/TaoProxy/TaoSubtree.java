@@ -387,13 +387,13 @@ public class TaoSubtree implements Subtree {
 				&& currentLevel > lastLevelToSave) {
 			TaoLogger.logDebug("Deleting because " + timestamp + " < " + minTime);
 			// check if we need to keep this as orphan block
-			mInterface.cacheLock.readLock().lock();
+			// mInterface.cacheLock.readLock().lock();
 			for (Block block : child.getFilledBlocks()) {
 				if (mInterface.mBlocksInCache.containsKey(block.getBlockID())) {
 					mOrphanBlocks.put(block.getBlockID(), block);
 				}
 			}
-			mInterface.cacheLock.readLock().unlock();
+			// mInterface.cacheLock.readLock().unlock();
 			// We should delete child, check if it was the right or left child
 			if (directions[parentLevel]) {
 				TaoLogger.logDebug("Going to delete the right child for path " + pathID + " at level " + parentLevel);
