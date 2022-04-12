@@ -67,6 +67,6 @@ rw_ratio=0.5
 zipf=0.9
 quorum_type="nearest"
 
-_tmux_process_command $CLIENT_SESSION 0 'C-c' "./scripts/run-client.sh $num_clients $loadtest_length $rw_ratio $zipf $num_warmup $quorum_type"
+_tmux_process_command $CLIENT_SESSION 0 'C-c' "./scripts/run-client.sh $num_clients $loadtest_length $rw_ratio $zipf $num_warmup $quorum_type 0"
 
 echo 'Client launched.'

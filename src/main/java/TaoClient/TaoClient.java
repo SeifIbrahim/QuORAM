@@ -91,7 +91,7 @@ public class TaoClient implements Client {
 	// time interval for bucketting throughputs and response times
 	public static int SAMPLE_INTERVAL = 10 * 1000;
 
-	public static final int TIMEOUT_DELAY = 5000;
+	public static final int TIMEOUT_DELAY = 2000;
 
 	public static ArrayList<Double> sThroughputs = new ArrayList<>();
 
@@ -391,10 +391,10 @@ public class TaoClient implements Client {
 			mSiteLatenciesLock.readLock().unlock();
 			// it's possible that we don't have latencies for any of the available sites
 			if (site_entry.isPresent()) {
-				if(TaoLogger.logLevel == TaoLogger.LOG_INFO) {
+				if (TaoLogger.logLevel == TaoLogger.LOG_INFO) {
 					// want to avoid recomputing the median if logging is off
-				TaoLogger.logInfo("Selected unit " + site_entry.get().getKey() + " with median latency: "
-						+ Quantiles.median().compute(site_entry.get().getValue()) + " ms");
+					TaoLogger.logInfo("Selected unit " + site_entry.get().getKey() + " with median latency: "
+							+ Quantiles.median().compute(site_entry.get().getValue()) + " ms");
 				}
 				return site_entry.get().getKey();
 			}
@@ -581,6 +581,19 @@ public class TaoClient implements Client {
 
 							it.remove();
 							writeResponses.add(entry.getKey());
+							markResponsive(entry.getKey());
+
+							if (entry.getValue().get().getFailed()) {
+								// we got a negative ack in the write p hase so abort the operation
+								// cancel waiting on responses so threa ds aren't wasted
+								while (it.hasNext()) {
+									Map.Entry<Integer, Future<ProxyResponse>> entry2 = (Entry<Integer, Future<ProxyResponse>>) it
+											.next();
+									entry2.getValue().cancel(true);
+									it.remove();
+								}
+								return null;
+							}
 						} catch (Exception e) {
 							TaoLogger.logInfo(e.toString());
 							e.printStackTrace();
@@ -811,8 +824,9 @@ public class TaoClient implements Client {
 		}
 	}
 
-	public static int doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
+	public static boolean doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
 		long start;
+		boolean success = true;
 		if (readOrWrite == 0) {
 			TaoLogger.logInfo("Doing read request #" + ((TaoClient) client).mRequestID.get());
 
@@ -833,6 +847,7 @@ public class TaoClient implements Client {
 
 			if (!writeStatus) {
 				TaoLogger.logForce("Write failed for block " + targetBlock);
+				success = false;
 				System.exit(1);
 			}
 		}
@@ -846,55 +861,21 @@ public class TaoClient implements Client {
 					.add(System.currentTimeMillis() - start);
 		}
 
-		return 1;
+		return success;
 	}
 
 	public static void loadTest(int concurrentClients, int loadTestLength, int warmupOperations, double rwRatio,
-			double zipfExp) throws InterruptedException {
-		Callable<Integer> loadTestClientThread = () -> {
-			TaoClient client = new TaoClient((short) -1);
-
-			// Random number generator
-			SecureRandom r = new SecureRandom();
-
-			long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
-			long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
-
-			ZipfDistribution zipf = new ZipfDistribution((int) totalBlocks, zipfExp);
-
-			int operationCount = 0;
-
-			while (System.currentTimeMillis() < loadTestStartTime + loadTestLength) {
-				int readOrWrite = (r.nextDouble() < rwRatio) ? 0 : 1;
-				long targetBlock = zipf.sample();
-				doLoadTestOperation(client, readOrWrite, targetBlock);
-				operationCount++;
-				synchronized (sBucketedThroughputs) {
-					int index = (int) ((System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL);
-					while (sBucketedThroughputs.size() < index + 1) {
-						sBucketedThroughputs.add((long) 0);
-					}
-					sBucketedThroughputs.set(index, sBucketedThroughputs.get(index) + 1);
-				}
-			}
-
-			synchronized (sThroughputs) {
-				sThroughputs.add((double) operationCount);
-			}
-
-			return 1;
-		};
-
+			double zipfExp, int clientID) throws InterruptedException {
 		// Warm up the system
 		TaoClient warmUpClient = new TaoClient((short) -1);
-		SecureRandom r = new SecureRandom();
+		SecureRandom sr = new SecureRandom();
 		long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
 		long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
-		PrimitiveIterator.OfLong blockIDGenerator = r.longs(warmupOperations, 0, totalBlocks - 1).iterator();
+		PrimitiveIterator.OfLong blockIDGenerator = sr.longs(warmupOperations, 0, totalBlocks - 1).iterator();
 
 		for (int i = 0; i < warmupOperations; i++) {
 			long blockID = blockIDGenerator.next();
-			int readOrWrite = r.nextInt(2);
+			int readOrWrite = sr.nextInt(2);
 
 			if (readOrWrite == 0) {
 				warmUpClient.logicalOperation(blockID, null, false);
@@ -916,6 +897,39 @@ public class TaoClient implements Client {
 				Executors.defaultThreadFactory());
 		loadTestStartTime = System.currentTimeMillis();
 		for (int i = 0; i < concurrentClients; i++) {
+			final short j = (short) (i + clientID * concurrentClients);
+			Callable<Integer> loadTestClientThread = () -> {
+				TaoClient client = new TaoClient(j);
+
+				// Random number generator
+				SecureRandom r = new SecureRandom();
+
+				ZipfDistribution zipf = new ZipfDistribution((int) totalBlocks, zipfExp);
+
+				int operationCount = 0;
+
+				while (System.currentTimeMillis() < loadTestStartTime + loadTestLength) {
+					int readOrWrite = (r.nextDouble() < rwRatio) ? 0 : 1;
+					long targetBlock = zipf.sample();
+					boolean success = doLoadTestOperation(client, readOrWrite, targetBlock);
+					if (success) {
+						operationCount++;
+						synchronized (sBucketedThroughputs) {
+							int index = (int) ((System.currentTimeMillis() - loadTestStartTime) / SAMPLE_INTERVAL);
+							while (sBucketedThroughputs.size() < index + 1) {
+								sBucketedThroughputs.add((long) 0);
+							}
+							sBucketedThroughputs.set(index, sBucketedThroughputs.get(index) + 1);
+						}
+					}
+				}
+
+				synchronized (sThroughputs) {
+					sThroughputs.add((double) operationCount);
+				}
+
+				return 1;
+			};
 			clientThreadExecutor.submit(loadTestClientThread);
 		}
 		clientThreadExecutor.shutdown();
@@ -985,8 +999,7 @@ public class TaoClient implements Client {
 			TaoConfigs.USER_CONFIG_FILE = configFileName;
 
 			// Create client
-
-			String clientID = options.get("id");
+			short clientID = Short.parseShort(options.getOrDefault("id", "0"));
 
 			// Determine if we are load testing or just making an interactive client
 			String runType = options.getOrDefault("runType", "interactive");
@@ -1004,7 +1017,7 @@ public class TaoClient implements Client {
 			if (runType.equals("interactive")) {
 				Scanner reader = new Scanner(System.in);
 				while (true) {
-					TaoClient client = new TaoClient(Short.parseShort(clientID));
+					TaoClient client = new TaoClient(clientID);
 					TaoLogger.logForce("W for write, R for read, P for print, Q for quit");
 					String option = reader.nextLine();
 
@@ -1071,7 +1084,7 @@ public class TaoClient implements Client {
 				String zipfExpArg = options.getOrDefault("zipfExp", "1");
 				double zipfExp = Double.parseDouble(zipfExpArg);
 
-				loadTest(concurrentClients, loadTestLength, warmupOperations, rwRatio, zipfExp);
+				loadTest(concurrentClients, loadTestLength, warmupOperations, rwRatio, zipfExp, clientID);
 
 				System.exit(0);
 			}

@@ -13,90 +13,109 @@ import java.util.Arrays;
  * @brief Implementation of a class that implements the ProxyResponse message type
  */
 public class TaoProxyResponse implements ProxyResponse {
-    // The original client request ID
-    private long mClientRequestID;
+	// The original client request ID
+	private long mClientRequestID;
 
-    // The data from the read block if responding to a read request
-    private byte[] mReturnData;
+	// The data from the read block if responding to a read request
+	private byte[] mReturnData;
 
-    private byte[] mReturnTag;
+	private byte[] mReturnTag;
 
-    // The status of the request write if responding to a write request
-    private boolean mWriteStatus;
+	// The status of the request write if responding to a write request
+	private boolean mWriteStatus;
 
-    /**
-     * @brief Default constructor
-     */
-    public TaoProxyResponse() {
-        mClientRequestID = -1;
-        mReturnData = new byte[TaoConfigs.BLOCK_SIZE];
-        mWriteStatus = false;
-    }
+	// whether the response to the client indicates a failure (negative ack)
+	private boolean mFailed;
 
-    @Override
-    public void initFromSerialized(byte[] serialized) {
-        int startIndex = 0;
-        mClientRequestID = Longs.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 8));
-        startIndex += 8;
+	/**
+	 * @brief Default constructor
+	 */
+	public TaoProxyResponse() {
+		mClientRequestID = -1;
+		mReturnData = new byte[TaoConfigs.BLOCK_SIZE];
+		mWriteStatus = false;
+		mFailed = false;
+	}
 
-        mReturnData = Arrays.copyOfRange(serialized, startIndex, startIndex + TaoConfigs.BLOCK_SIZE);
-        startIndex += TaoConfigs.BLOCK_SIZE;
+	@Override
+	public void initFromSerialized(byte[] serialized) {
+		int startIndex = 0;
+		mClientRequestID = Longs.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 8));
+		startIndex += 8;
 
-        int writeStatus = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
-        mWriteStatus = writeStatus == 1 ? true : false;
-        startIndex += 4;
+		mReturnData = Arrays.copyOfRange(serialized, startIndex, startIndex + TaoConfigs.BLOCK_SIZE);
+		startIndex += TaoConfigs.BLOCK_SIZE;
 
-        mReturnTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
-    }
+		int writeStatus = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
+		mWriteStatus = writeStatus == 1 ? true : false;
+		startIndex += 4;
 
-    @Override
-    public long getClientRequestID() {
-        return mClientRequestID;
-    }
+		int failed = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
+		mFailed = failed == 1 ? true : false;
+		startIndex += 4;
 
-    @Override
-    public void setClientRequestID(long requestID) {
-        mClientRequestID = requestID;
-    }
+		mReturnTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
+	}
 
-    @Override
-    public byte[] getReturnData() {
-        return mReturnData;
-    }
+	@Override
+	public long getClientRequestID() {
+		return mClientRequestID;
+	}
 
-    @Override
-    public void setReturnData(byte[] data) {
-        mReturnData = data;
-    }
+	@Override
+	public void setClientRequestID(long requestID) {
+		mClientRequestID = requestID;
+	}
 
-    @Override
-    public Tag getReturnTag() {
-        Tag tag = new Tag();
-        tag.initFromSerialized(mReturnTag);
-        return tag;
-    }
+	@Override
+	public byte[] getReturnData() {
+		return mReturnData;
+	}
 
-    @Override
-    public void setReturnTag(Tag tag) {
-        mReturnTag = tag.serialize();
-    }
+	@Override
+	public void setReturnData(byte[] data) {
+		mReturnData = data;
+	}
 
-    @Override
-    public boolean getWriteStatus() {
-        return mWriteStatus;
-    }
+	@Override
+	public Tag getReturnTag() {
+		Tag tag = new Tag();
+		tag.initFromSerialized(mReturnTag);
+		return tag;
+	}
 
-    @Override
-    public void setWriteStatus(boolean status) {
-        mWriteStatus = status;
-    }
+	@Override
+	public void setReturnTag(Tag tag) {
+		mReturnTag = tag.serialize();
+	}
 
-    @Override
-    public byte[] serialize() {
+	@Override
+	public boolean getWriteStatus() {
+		return mWriteStatus;
+	}
 
-        byte[] clientIDBytes = Longs.toByteArray(mClientRequestID);
-        int writeStatusInt = mWriteStatus ? 1 : 0;
-        byte[] writeStatusBytes = Ints.toByteArray(writeStatusInt);
-        return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, mReturnTag);
-    }
+	@Override
+	public void setWriteStatus(boolean status) {
+		mWriteStatus = status;
+	}
+
+	@Override
+	public byte[] serialize() {
+		byte[] clientIDBytes = Longs.toByteArray(mClientRequestID);
+		int writeStatusInt = mWriteStatus ? 1 : 0;
+		byte[] writeStatusBytes = Ints.toByteArray(writeStatusInt);
+		int failedInt = mFailed ? 1 : 0;
+		byte[] failedBytes = Ints.toByteArray(failedInt);
+		return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, failedBytes, mReturnTag);
+	}
+
+	@Override
+	public void setFailed(boolean status) {
+		mFailed = status;
+	}
+
+	@Override
+	public boolean getFailed() {
+		return mFailed;
+	}
 }

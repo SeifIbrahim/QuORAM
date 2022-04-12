@@ -6,7 +6,6 @@ import Configuration.TaoConfigs;
 
 import com.google.common.primitives.Bytes;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.concurrent.locks.ReadWriteLock;
@@ -59,6 +58,7 @@ public class TaoInterface {
 		TaoLogger.logInfo("Got a request with opID " + opID);
 
 		if (type == MessageTypes.CLIENT_READ_REQUEST) {
+			TaoLogger.logInfo("Got a read request with opID " + opID);
 			cacheLock.writeLock().lock();
 
 			// Evict oldest entry if cache is full
@@ -107,12 +107,17 @@ public class TaoInterface {
 
 			mSequencer.onReceiveRequest(clientReq);
 		} else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
-			cacheLock.readLock().lock();
+			TaoLogger.logInfo("Got a write request with opID " + opID);
+			cacheLock.readLock().lock();// Create a ProxyResponse
+			ProxyResponse response = mMessageCreator.createProxyResponse();
+			response.setClientRequestID(clientReq.getRequestID());
+			response.setWriteStatus(true);
+			response.setReturnTag(new Tag());
 			if (!mIncompleteCache.keySet().contains(opID)) {
 				TaoLogger.logInfo("mIncompleteCache does not contain opID " + opID + "!");
 				TaoLogger.logInfo(mIncompleteCache.keySet().toString());
 				cacheLock.readLock().unlock();
-				return;
+				response.setFailed(true);
 			} else {
 				TaoLogger.logInfo("Found opID " + opID + " in cache");
 			}
@@ -142,13 +147,6 @@ public class TaoInterface {
 			}
 			// queues this path to be written back and updates the block timestamp
 			mProcessor.update_timestamp(pathID);
-
-			// Create a ProxyResponse
-
-			ProxyResponse response = mMessageCreator.createProxyResponse();
-			response.setClientRequestID(clientReq.getRequestID());
-			response.setWriteStatus(true);
-			response.setReturnTag(new Tag());
 
 			// Get channel
 			AsynchronousSocketChannel clientChannel = clientReq.getChannel();

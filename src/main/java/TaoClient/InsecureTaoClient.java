@@ -65,7 +65,8 @@ public class InsecureTaoClient extends TaoClient {
 	}
 
 	// change static methods to say InsecureTaoClient instead of TaoClient
-	public static int doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
+	public static boolean doLoadTestOperation(Client client, int readOrWrite, long targetBlock) {
+		boolean success = true;
 		if (readOrWrite == 0) {
 			TaoLogger.logInfo("Doing read request #" + ((InsecureTaoClient) client).mRequestID.get());
 
@@ -91,52 +92,26 @@ public class InsecureTaoClient extends TaoClient {
 
 			if (!writeStatus) {
 				TaoLogger.logForce("Write failed for block " + targetBlock);
+				success = false;
 				System.exit(1);
 			}
 		}
 
-		return 1;
+		return success;
 	}
 
 	public static void loadTest(int concurrentClients, int loadTestLength, int warmupOperations, double rwRatio,
-			double zipfExp) throws InterruptedException {
-		Callable<Integer> loadTestClientThread = () -> {
-			InsecureTaoClient client = new InsecureTaoClient((short) -1);
-
-			// Random number generator
-			SecureRandom r = new SecureRandom();
-
-			long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
-			long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
-
-			ZipfDistribution zipf = new ZipfDistribution((int) totalBlocks, zipfExp);
-
-			int operationCount = 0;
-
-			while (System.currentTimeMillis() < loadTestStartTime + loadTestLength) {
-				int readOrWrite = (r.nextDouble() < rwRatio) ? 0 : 1;
-				long targetBlock = zipf.sample();
-				doLoadTestOperation(client, readOrWrite, targetBlock);
-				operationCount++;
-			}
-
-			synchronized (sThroughputs) {
-				sThroughputs.add((double) operationCount);
-			}
-
-			return 1;
-		};
-
+			double zipfExp, short clientID) throws InterruptedException {
 		// Warm up the system
 		InsecureTaoClient warmUpClient = new InsecureTaoClient((short) -1);
-		SecureRandom r = new SecureRandom();
+		SecureRandom sr = new SecureRandom();
 		long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
 		long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
-		PrimitiveIterator.OfLong blockIDGenerator = r.longs(warmupOperations, 0, totalBlocks - 1).iterator();
+		PrimitiveIterator.OfLong blockIDGenerator = sr.longs(warmupOperations, 0, totalBlocks - 1).iterator();
 
 		for (int i = 0; i < warmupOperations; i++) {
 			long blockID = blockIDGenerator.next();
-			int readOrWrite = r.nextInt(2);
+			int readOrWrite = sr.nextInt(2);
 
 			if (readOrWrite == 0) {
 				warmUpClient.logicalOperation(blockID, null, false);
@@ -155,6 +130,30 @@ public class InsecureTaoClient extends TaoClient {
 				Executors.defaultThreadFactory());
 		loadTestStartTime = System.currentTimeMillis();
 		for (int i = 0; i < concurrentClients; i++) {
+			final short j = (short) (i + clientID * concurrentClients);
+			Callable<Integer> loadTestClientThread = () -> {
+				TaoClient client = new TaoClient(j);
+				// Random number generator
+				SecureRandom r = new SecureRandom();
+
+				ZipfDistribution zipf = new ZipfDistribution((int) totalBlocks, zipfExp);
+
+				int operationCount = 0;
+
+				while (System.currentTimeMillis() < loadTestStartTime + loadTestLength) {
+					int readOrWrite = (r.nextDouble() < rwRatio) ? 0 : 1;
+					long targetBlock = zipf.sample();
+					doLoadTestOperation(client, readOrWrite, targetBlock);
+					operationCount++;
+				}
+
+				synchronized (sThroughputs) {
+					sThroughputs.add((double) operationCount);
+				}
+
+				return 1;
+			};
+
 			clientThreadExecutor.submit(loadTestClientThread);
 		}
 		clientThreadExecutor.shutdown();
@@ -205,8 +204,7 @@ public class InsecureTaoClient extends TaoClient {
 			TaoConfigs.USER_CONFIG_FILE = configFileName;
 
 			// Create client
-
-			String clientID = options.get("id");
+			short clientID = Short.parseShort(options.getOrDefault("id", "0"));
 
 			// Determine if we are load testing or just making an interactive client
 			String runType = options.getOrDefault("runType", "interactive");
@@ -214,7 +212,7 @@ public class InsecureTaoClient extends TaoClient {
 			if (runType.equals("interactive")) {
 				Scanner reader = new Scanner(System.in);
 				while (true) {
-					InsecureTaoClient client = new InsecureTaoClient(Short.parseShort(clientID));
+					InsecureTaoClient client = new InsecureTaoClient(clientID);
 					TaoLogger.logForce("W for write, R for read, P for print, Q for quit");
 					String option = reader.nextLine();
 
@@ -281,7 +279,7 @@ public class InsecureTaoClient extends TaoClient {
 				String zipfExpArg = options.getOrDefault("zipfExp", "1");
 				double zipfExp = Double.parseDouble(zipfExpArg);
 
-				loadTest(concurrentClients, loadTestLength, warmupOperations, rwRatio, zipfExp);
+				loadTest(concurrentClients, loadTestLength, warmupOperations, rwRatio, zipfExp, clientID);
 
 				System.exit(0);
 			}

@@ -1,1 +1,1 @@
-(cd target && java -Xmx30G -cp ../lib/commons-math3-3.6.1.jar:../lib/guava-31.1-jre.jar:TaoServer-1.0-SNAPSHOT.jar TaoClient.TaoClient --runType load_test --clients $1 --load_test_length $2 --rwRatio $3 --zipfExp $4 --warmup_operations $5 --quorum_type $6)
+(cd target && java -Xmx30G -cp ../lib/commons-math3-3.6.1.jar:../lib/guava-31.1-jre.jar:TaoServer-1.0-SNAPSHOT.jar TaoClient.TaoClient --runType load_test --clients $1 --load_test_length $2 --rwRatio $3 --zipfExp $4 --warmup_operations $5 --quorum_type $6 --id $7)

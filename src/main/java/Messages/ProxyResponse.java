@@ -58,4 +58,7 @@ public interface ProxyResponse {
      * @return byte representation of ProxyResponse
      */
     byte[] serialize();
+    
+    void setFailed(boolean b);
+    boolean getFailed();
 }
