@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
+import java.util.Queue;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.concurrent.*;
@@ -18,17 +19,15 @@ import java.nio.channels.AsynchronousSocketChannel;
 
 public class TaoInterface {
 	// Maps from operation ID to block ID
-	public Map<OperationID, Long> mIncompleteCache = new HashMap<>();
+	public Map<OperationID, Long> mIncompleteCache = new ConcurrentHashMap<>();
 
 	// Maps from block ID to how many ongoing operations involve that block.
 	// This must be changed each time an operation is added to
 	// or removed from the incompleteCache. When the number drops to 0,
 	// the block ID must be removed from the map.
-	public Map<Long, Integer> mBlocksInCache = new HashMap<>();
+	public Map<Long, Integer> mBlocksInCache = new ConcurrentHashMap<>();
 
-	protected LinkedList<OperationID> cacheOpsInOrder = new LinkedList<>();
-
-	protected ReadWriteLock cacheLock = new ReentrantReadWriteLock();
+	protected Queue<OperationID> cacheOpsInOrder = new ArrayBlockingQueue<>(TaoConfigs.INCOMPLETE_CACHE_LIMIT);
 
 	protected Sequencer mSequencer;
 
@@ -44,7 +43,9 @@ public class TaoInterface {
 
 	protected void removeOpFromCache(OperationID opID) {
 		Long blockID = mIncompleteCache.get(opID);
-		mIncompleteCache.remove(opID, blockID);
+		if(!mIncompleteCache.remove(opID, blockID)) {
+			TaoLogger.logForce("Removing entry from cache failed");
+		}
 		TaoLogger.logInfo("Removed entry from cache");
 		mBlocksInCache.put(blockID, mBlocksInCache.getOrDefault(blockID, 0) - 1);
 		if (mBlocksInCache.get(blockID) <= 0) {
@@ -64,7 +65,6 @@ public class TaoInterface {
 
 			ArrayList<Long> evictedPathIDs = new ArrayList<Long>();
 
-			cacheLock.writeLock().lock();
 			// Evict oldest entry if cache is full
 			while (mIncompleteCache.size() >= TaoConfigs.INCOMPLETE_CACHE_LIMIT) {
 				TaoLogger.logInfo("Cache size: " + mIncompleteCache.size());
@@ -82,7 +82,6 @@ public class TaoInterface {
 			TaoLogger.logInfo("There are now " + mBlocksInCache.get(blockID) + " instances of block " + blockID
 					+ " in the incomplete cache");
 			cacheOpsInOrder.add(opID);
-			cacheLock.writeLock().unlock();
 
 			// add the paths for the evicted blocks to the write queue and increment # paths
 			// this is to prevent unbounded memory in the case that no o_write ever comes to
@@ -120,12 +119,10 @@ public class TaoInterface {
 			response.setClientRequestID(clientReq.getRequestID());
 			response.setWriteStatus(true);
 			response.setReturnTag(new Tag());
-			cacheLock.readLock().lock();
 			if (!mIncompleteCache.keySet().contains(opID)) {
 				TaoLogger.logInfo("mIncompleteCache does not contain opID " + opID + "!");
 				TaoLogger.logInfo(mIncompleteCache.keySet().toString());
 				response.setFailed(true);
-				cacheLock.readLock().unlock();
 			} else {
 				TaoLogger.logInfo("Found opID " + opID + " in cache");
 
@@ -139,12 +136,9 @@ public class TaoInterface {
 				}
 				// this needs to be here so that we can guarantee the block doesn't get deleted
 				// before we write to it
-				cacheLock.readLock().unlock();
 
 				// Remove operation from incomplete cache
-				cacheLock.writeLock().lock();
 				removeOpFromCache(opID);
-				cacheLock.writeLock().unlock();
 
 				// update path timestamps
 				long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);

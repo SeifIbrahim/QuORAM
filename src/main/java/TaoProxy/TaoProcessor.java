@@ -847,9 +847,6 @@ public class TaoProcessor implements Processor {
 		TaoLogger.logDebug("Trying to get data for blockID " + blockID);
 		TaoLogger.logDebug("I think this is at path: " + mPositionMap.getBlockPosition(blockID));
 
-		// We will look 10 times before failing
-		int checkNum = 0;
-
 		// Due to multiple threads moving blocks around, we need to run this in a loop
 		while (true) {
 			// Check if the bucket containing this blockID is in the subtree
@@ -874,9 +871,13 @@ public class TaoProcessor implements Processor {
 					// continue;
 				}
 			} else {
-				// If the block wasn't in the subtree, it should be in the stash
+				// If the block wasn't in the subtree, it should be in the stash or orphan
+				// blocks
 				TaoLogger.logInfo("Cannot find block " + blockID + " in subtree");
 				Block targetBlock = mStash.getBlock(blockID);
+				if (targetBlock == null) {
+					targetBlock = mOrphanBlocks.get(blockID);
+				}
 
 				if (targetBlock != null) {
 					// If we found the block in the stash, return the data
@@ -889,17 +890,6 @@ public class TaoProcessor implements Processor {
 					// continue;
 				}
 			}
-
-			// If we've looped 10 times, probably can't find it
-			// TODO: We should not get to this point, and thus indicates a coding error
-			if (checkNum == 10) {
-				TaoLogger.logForce(
-						"Cannot find data for block " + blockID + " in path " + mPositionMap.getBlockPosition(blockID));
-				System.exit(1);
-			}
-
-			// Increment
-			checkNum++;
 		}
 	}
 
@@ -1054,7 +1044,7 @@ public class TaoProcessor implements Processor {
 			}
 		}
 		mSubtreeRWL.writeLock().unlock();
-		
+
 		// Add this path to the write queue
 		synchronized (mWriteQueue) {
 			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
@@ -1430,10 +1420,7 @@ public class TaoProcessor implements Processor {
 			for (Map.Entry<InetSocketAddress, AsynchronousSocketChannel> entry : mProxyToServerChannelMap.get(channel)
 					.entrySet()) {
 				try {
-					Semaphore lock = mAsyncProxyToServerSemaphoreMap.get(channel).get(entry.getKey());
-					lock.acquireUninterruptibly();
 					entry.getValue().close();
-					lock.release();
 				} catch (IOException e) {
 					e.printStackTrace();
 				}
@@ -1480,6 +1467,8 @@ public class TaoProcessor implements Processor {
 					mBucketedOrphanBlocks.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
 		}
 		TaoLogger.logForce(numOrphanBlocksBuilder.toString());
+
+		System.gc();
 	}
 
 }
