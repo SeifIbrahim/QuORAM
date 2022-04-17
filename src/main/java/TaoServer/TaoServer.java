@@ -127,42 +127,42 @@ public class TaoServer implements Server {
 		// Array of byte arrays (buckets expressed as byte array)
 		byte[][] pathInBytes = new byte[mServerTreeHeight + 1][];
 
+		// Get the directions for this path
+		boolean[] pathDirection = Utility.getPathFromPID(pathID, mServerTreeHeight);
+
+		// Variable to represent the offset into the disk file
+		long offset = 0;
+
+		// Index into logical array representing the ORAM tree
+		long index = 0;
+
+		// The current bucket we are looking for
+		int currentBucket = 0;
+
+		// Keep track of bucket size
+		int mBucketSize = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
+
+		// Allocate byte array for this bucket
+		pathInBytes[currentBucket] = new byte[mBucketSize];
+
+		// Keep track of the bucket we need to lock
+		int bucketLockIndex = 0;
+
+		// Grab a file pointer from shared pool
+		while (true) {
+			try {
+				mFilePointersSemaphore.acquire();
+				break;
+			} catch (InterruptedException e) {
+			}
+		}
+
+		RandomAccessFile diskFile = null;
+		synchronized (mFilePointers) {
+			diskFile = mFilePointers.pop();
+		}
+
 		try {
-			// Get the directions for this path
-			boolean[] pathDirection = Utility.getPathFromPID(pathID, mServerTreeHeight);
-
-			// Variable to represent the offset into the disk file
-			long offset = 0;
-
-			// Index into logical array representing the ORAM tree
-			long index = 0;
-
-			// The current bucket we are looking for
-			int currentBucket = 0;
-
-			// Keep track of bucket size
-			int mBucketSize = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
-
-			// Allocate byte array for this bucket
-			pathInBytes[currentBucket] = new byte[mBucketSize];
-
-			// Keep track of the bucket we need to lock
-			int bucketLockIndex = 0;
-
-			// Grab a file pointer from shared pool
-			while (true) {
-				try {
-					mFilePointersSemaphore.acquire();
-					break;
-				} catch (InterruptedException e) {
-				}
-			}
-
-			RandomAccessFile diskFile = null;
-			synchronized (mFilePointers) {
-				diskFile = mFilePointers.pop();
-			}
-
 			// Lock appropriate bucket
 			mBucketLocks[bucketLockIndex].lock();
 
@@ -209,15 +209,6 @@ public class TaoServer implements Server {
 				currentBucket++;
 			}
 
-			// Unlock final bucket
-			mBucketLocks[bucketLockIndex].unlock();
-
-			// Release the file pointer lock
-			synchronized (mFilePointers) {
-				mFilePointers.push(diskFile);
-			}
-			mFilePointersSemaphore.release();
-
 			// Put first bucket into a new byte array representing the final return value
 			byte[] returnData = pathInBytes[0];
 
@@ -231,6 +222,15 @@ public class TaoServer implements Server {
 			return returnData;
 		} catch (Exception e) {
 			e.printStackTrace();
+		} finally {
+			// Unlock final bucket
+			mBucketLocks[bucketLockIndex].unlock();
+
+			// Release the file pointer lock
+			synchronized (mFilePointers) {
+				mFilePointers.push(diskFile);
+			}
+			mFilePointersSemaphore.release();
 		}
 
 		// Return null if there is an error
@@ -239,40 +239,40 @@ public class TaoServer implements Server {
 
 	@Override
 	public boolean writePath(long pathID, byte[] data, long timestamp) {
+		// Get the directions for this path
+		boolean[] pathDirection = Utility.getPathFromPID(pathID, mServerTreeHeight);
+
+		// Variable to represent the offset into the disk file
+		long offsetInDisk = 0;
+
+		// Index into logical array representing the ORAM tree
+		long indexIntoTree = 0;
+
+		// Indices into the data byte array
+		int dataIndexStart = 0;
+		int dataIndexStop = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
+
+		// The current bucket we are looking for
+		int bucketLockIndex = 0;
+
+		// The current timestamp we are checking
+		int timestampIndex = 0;
+
+		// Grab a file pointer from shared pool
+		while (true) {
+			try {
+				mFilePointersSemaphore.acquire();
+				break;
+			} catch (InterruptedException e) {
+			}
+		}
+
+		RandomAccessFile diskFile = null;
+		synchronized (mFilePointers) {
+			diskFile = mFilePointers.pop();
+		}
+
 		try {
-			// Get the directions for this path
-			boolean[] pathDirection = Utility.getPathFromPID(pathID, mServerTreeHeight);
-
-			// Variable to represent the offset into the disk file
-			long offsetInDisk = 0;
-
-			// Index into logical array representing the ORAM tree
-			long indexIntoTree = 0;
-
-			// Indices into the data byte array
-			int dataIndexStart = 0;
-			int dataIndexStop = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
-
-			// The current bucket we are looking for
-			int bucketLockIndex = 0;
-
-			// The current timestamp we are checking
-			int timestampIndex = 0;
-
-			// Grab a file pointer from shared pool
-			while (true) {
-				try {
-					mFilePointersSemaphore.acquire();
-					break;
-				} catch (InterruptedException e) {
-				}
-			}
-
-			RandomAccessFile diskFile = null;
-			synchronized (mFilePointers) {
-				diskFile = mFilePointers.pop();
-			}
-
 			// Lock bucket
 			mBucketLocks[bucketLockIndex].lock();
 
@@ -342,6 +342,11 @@ public class TaoServer implements Server {
 				dataIndexStop += mBucketSize;
 			}
 
+			// Return true, signaling that the write was successful
+			return true;
+		} catch (Exception e) {
+			e.printStackTrace();
+		} finally {
 			// Unlock final bucket
 			mBucketLocks[bucketLockIndex].unlock();
 
@@ -350,11 +355,6 @@ public class TaoServer implements Server {
 				mFilePointers.push(diskFile);
 			}
 			mFilePointersSemaphore.release();
-
-			// Return true, signaling that the write was successful
-			return true;
-		} catch (Exception e) {
-			e.printStackTrace();
 		}
 
 		// Return false, signaling that the write was not successful
