@@ -132,7 +132,7 @@ public class InsecureTaoClient extends TaoClient {
 		for (int i = 0; i < concurrentClients; i++) {
 			final short j = (short) (i + clientID * concurrentClients);
 			Callable<Integer> loadTestClientThread = () -> {
-				TaoClient client = new TaoClient(j);
+				TaoClient client = new InsecureTaoClient(j);
 				// Random number generator
 				SecureRandom r = new SecureRandom();
 
@@ -166,6 +166,8 @@ public class InsecureTaoClient extends TaoClient {
 		// Collections.sort(sResponseTimes);
 		// TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
 		// TaoLogger.logForce("Response times: " + sResponseTimes.toString());
+
+		TaoLogger.logForce(sProfiler.getClientStatistics());
 
 		double throughputTotal = 0;
 		for (Double l : sThroughputs) {

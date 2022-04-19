@@ -91,13 +91,18 @@ public class InsecureTaoServer extends TaoServer {
 
 			// Serve message based on type
 			if (messageType == MessageTypes.CLIENT_READ_REQUEST) {
+				mReadStartTimes.put(clientReq.hashCode(), System.currentTimeMillis());
 				mReadPathExecutor.submit(() -> {
 					TaoLogger.logDebug("Serving a read request");
 					// Read the requested block
 					TaoBlock block = (TaoBlock) readBlock(clientReq.getBlockID());
 
+					long startTime = mReadStartTimes.remove(clientReq.hashCode());
+					long time = System.currentTimeMillis() - startTime;
+
 					// Create a server response
 					ProxyResponse readResponse = mMessageCreator.createProxyResponse();
+					readResponse.setProcessingTime(time);
 					readResponse.setClientRequestID(clientReq.getRequestID());
 					readResponse.setReturnData(block.getData());
 					readResponse.setReturnTag(block.getTag());
@@ -138,13 +143,18 @@ public class InsecureTaoServer extends TaoServer {
 					}
 				});
 			} else if (messageType == MessageTypes.CLIENT_WRITE_REQUEST) {
+				mWriteStartTimes.put(clientReq.hashCode(), System.currentTimeMillis());
 				mWriteBackExecutor.submit(() -> {
 					TaoLogger.logDebug("Serving a write request");
-					// Read the requested block
+					// Write the requested block
 					writeBlock(clientReq.getBlockID(), clientReq.getData(), clientReq.getTag());
+
+					long startTime = mWriteStartTimes.remove(clientReq.hashCode());
+					long time = System.currentTimeMillis() - startTime;
 
 					ProxyResponse writeResponse = mMessageCreator.createProxyResponse();
 					writeResponse = mMessageCreator.createProxyResponse();
+					writeResponse.setProcessingTime(time);
 					writeResponse.setClientRequestID(clientReq.getRequestID());
 					writeResponse.setWriteStatus(true);
 					writeResponse.setReturnTag(clientReq.getTag());
@@ -195,6 +205,7 @@ public class InsecureTaoServer extends TaoServer {
 	private void writeBlock(long blockID, byte[] data, Tag tag) {
 		try {
 			// Grab a file pointer from shared pool
+			/*
 			while (true) {
 				try {
 					mFilePointersSemaphore.acquire();
@@ -202,6 +213,7 @@ public class InsecureTaoServer extends TaoServer {
 				} catch (InterruptedException e) {
 				}
 			}
+			*/
 			RandomAccessFile diskFile = null;
 			synchronized (mFilePointers) {
 				diskFile = mFilePointers.pop();
@@ -236,7 +248,7 @@ public class InsecureTaoServer extends TaoServer {
 			synchronized (mFilePointers) {
 				mFilePointers.push(diskFile);
 			}
-			mFilePointersSemaphore.release();
+			// mFilePointersSemaphore.release();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -245,6 +257,7 @@ public class InsecureTaoServer extends TaoServer {
 	private Block readBlock(long blockID) {
 		try {
 			// Grab a file pointer from shared pool
+			/*
 			while (true) {
 				try {
 					mFilePointersSemaphore.acquire();
@@ -252,6 +265,7 @@ public class InsecureTaoServer extends TaoServer {
 				} catch (InterruptedException e) {
 				}
 			}
+			*/
 			RandomAccessFile diskFile = null;
 			synchronized (mFilePointers) {
 				diskFile = mFilePointers.pop();
@@ -273,7 +287,7 @@ public class InsecureTaoServer extends TaoServer {
 			synchronized (mFilePointers) {
 				mFilePointers.push(diskFile);
 			}
-			mFilePointersSemaphore.release();
+			// mFilePointersSemaphore.release();
 
 			TaoBucket bucket = new TaoBucket();
 			bucket.initFromSerialized(bucketData);

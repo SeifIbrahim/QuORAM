@@ -497,7 +497,7 @@ public class TaoProxy implements Proxy {
 						typeAndLength = MessageUtility.parseTypeAndLength(typeByteBuffer);
 						typeByteBuffer.clear();
 					} catch (BufferUnderflowException e) {
-						TaoLogger.logForce("Lost connection to client");
+						TaoLogger.logInfo("Lost connection to client");
 						try {
 							// apparently the processor holds a channel open to the server for each client
 							// so we need to close those too
@@ -547,6 +547,8 @@ public class TaoProxy implements Proxy {
 								clientReq.setChannel(channel);
 
 								TaoLogger.logInfo("Proxy will handle client request #" + clientReq.getRequestID());
+
+								mProfiler.proxyOperationStart(clientReq);
 
 								// Serve the next client request
 								// Runnable serializeProcedure = () -> serveClient(channel);
@@ -624,7 +626,7 @@ public class TaoProxy implements Proxy {
 			// launch the producer thread
 			proxy.run();
 			// launch the path access daemon
-			new Thread(() -> proxy.accessDaemon()).start();
+			// new Thread(() -> proxy.accessDaemon()).start();
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

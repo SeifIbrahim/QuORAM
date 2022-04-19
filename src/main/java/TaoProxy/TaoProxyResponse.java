@@ -27,6 +27,8 @@ public class TaoProxyResponse implements ProxyResponse {
 	// whether the response to the client indicates a failure (negative ack)
 	private boolean mFailed;
 
+	private long mProcessingTime;
+
 	/**
 	 * @brief Default constructor
 	 */
@@ -35,6 +37,7 @@ public class TaoProxyResponse implements ProxyResponse {
 		mReturnData = new byte[TaoConfigs.BLOCK_SIZE];
 		mWriteStatus = false;
 		mFailed = false;
+		mProcessingTime = -1;
 	}
 
 	@Override
@@ -53,6 +56,9 @@ public class TaoProxyResponse implements ProxyResponse {
 		int failed = Ints.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 4));
 		mFailed = failed == 1 ? true : false;
 		startIndex += 4;
+
+		mProcessingTime = Longs.fromByteArray(Arrays.copyOfRange(serialized, startIndex, startIndex + 8));
+		startIndex += 8;
 
 		mReturnTag = Arrays.copyOfRange(serialized, startIndex, startIndex + 10);
 	}
@@ -106,7 +112,8 @@ public class TaoProxyResponse implements ProxyResponse {
 		byte[] writeStatusBytes = Ints.toByteArray(writeStatusInt);
 		int failedInt = mFailed ? 1 : 0;
 		byte[] failedBytes = Ints.toByteArray(failedInt);
-		return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, failedBytes, mReturnTag);
+        byte[] processingTimeBytes = Longs.toByteArray(mProcessingTime);
+		return Bytes.concat(clientIDBytes, mReturnData, writeStatusBytes, failedBytes, processingTimeBytes, mReturnTag);
 	}
 
 	@Override
@@ -118,4 +125,14 @@ public class TaoProxyResponse implements ProxyResponse {
 	public boolean getFailed() {
 		return mFailed;
 	}
+	
+	@Override
+    public long getProcessingTime() {
+        return mProcessingTime;
+    }
+
+    @Override
+    public void setProcessingTime(long processingTime) {
+        mProcessingTime = processingTime;
+    }
 }

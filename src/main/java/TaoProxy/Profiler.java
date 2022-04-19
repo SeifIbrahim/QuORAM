@@ -1,6 +1,7 @@
 package TaoProxy;
 
 import Messages.ClientRequest;
+import TaoClient.OperationID;
 
 import java.net.InetSocketAddress;
 
@@ -28,4 +29,27 @@ public interface Profiler {
     void writeBackPostRecv(InetSocketAddress address, long writeBackTime);
 
     void addPathTime(long processingTime);
+
+	void readQuorumPreSend(OperationID opID);
+
+	void readQuorumPostRecv(OperationID opID);
+
+	void writeQuorumPreSend(OperationID opID);
+
+	void writeQuorumPostRecv(OperationID opID);
+
+	void proxyOperationStart(ClientRequest req);
+
+	// returns total time that read/write request spent in the proxy
+	long proxyOperationComplete(ClientRequest req);
+
+	void clientRequestPreSend(long requestID, boolean write, int unitID);
+
+	void clientRequestPostRecv(long clientRequestID, boolean write, int unitID);
+
+	void proxyProcessingTime(long clientRequestID, boolean write, int unitID, long processingTime);
+
+	String getClientStatistics();
+
+	String getProxyStatistics();
 }

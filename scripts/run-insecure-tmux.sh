@@ -54,7 +54,7 @@ echo 'Servers launched.'
 
 # launch client
 num_clients=10
-num_warmup=50
+num_warmup=0
 loadtest_length=$((60*1000))
 rw_ratio=0.5
 zipf=0.9

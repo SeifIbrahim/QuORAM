@@ -61,4 +61,7 @@ public interface ProxyResponse {
     
     void setFailed(boolean b);
     boolean getFailed();
+
+	long getProcessingTime();
+	void setProcessingTime(long processingTime);
 }

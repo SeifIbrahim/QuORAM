@@ -102,6 +102,8 @@ public class TaoClient implements Client {
 
 	public short mClientID;
 
+	public static Profiler sProfiler = new TaoProfiler(-1);
+
 	public Map<Integer, Long> mBackoffTimeMap = new HashMap<>();
 	public Map<Integer, Integer> mBackoffCountMap = new HashMap<>();
 	public ReadWriteLock backoffLock = new ReentrantReadWriteLock();
@@ -322,6 +324,11 @@ public class TaoClient implements Client {
 							ProxyResponse clientAnswer = mResponseWaitMap.get(proxyResponse.getClientRequestID());
 							clientAnswer.initFromSerialized(requestBytes);
 
+							sProfiler.clientRequestPostRecv(proxyResponse.getClientRequestID(),
+									proxyResponse.getWriteStatus(), unitID);
+							sProfiler.proxyProcessingTime(proxyResponse.getClientRequestID(),
+									proxyResponse.getWriteStatus(), unitID, proxyResponse.getProcessingTime());
+
 							// Notify thread waiting for this response id
 							synchronized (clientAnswer) {
 								clientAnswer.notifyAll();
@@ -453,6 +460,9 @@ public class TaoClient implements Client {
 
 		TaoLogger.logInfo("Starting logical operation " + opID);
 
+		// unique operatioID across all clients
+		sProfiler.readQuorumPreSend(opID);
+
 		// Broadcast read(blockID) to all ORAM units
 		Map<Integer, Long> timeStart = new HashMap<>();
 		Map<Integer, Future<ProxyResponse>> readResponsesWaiting = new HashMap<Integer, Future<ProxyResponse>>();
@@ -533,6 +543,8 @@ public class TaoClient implements Client {
 				}
 			}
 
+			sProfiler.readQuorumPostRecv(opID);
+
 			// Cancel all pending reads, so that threads are not wasted
 			Iterator<Entry<Integer, Future<ProxyResponse>>> it = readResponsesWaiting.entrySet().iterator();
 			while (it.hasNext()) {
@@ -548,6 +560,8 @@ public class TaoClient implements Client {
 				tag.seqNum = tag.seqNum + 1;
 				tag.clientID = mClientID;
 			}
+
+			sProfiler.writeQuorumPreSend(opID);
 
 			// write to quorum members that we haven't acknowledged a response from
 			for (int i : quorum) {
@@ -615,6 +629,8 @@ public class TaoClient implements Client {
 			firstWrite = false;
 		}
 
+		sProfiler.writeQuorumPostRecv(opID);
+
 		// Cancel all pending writes, so that threads are not wasted
 		Iterator<Entry<Integer, Future<ProxyResponse>>> it = writeResponsesWaiting.entrySet().iterator();
 		while (it.hasNext()) {
@@ -681,6 +697,9 @@ public class TaoClient implements Client {
 			// Create an empty response and put it in the mResponseWaitMap
 			ProxyResponse proxyResponse = mMessageCreator.createProxyResponse();
 			mResponseWaitMap.put(request.getRequestID(), proxyResponse);
+
+			sProfiler.clientRequestPreSend(request.getRequestID(),
+					request.getType() == MessageTypes.CLIENT_WRITE_REQUEST, unitID);
 
 			// Send request and wait until response
 			synchronized (proxyResponse) {
@@ -890,7 +909,9 @@ public class TaoClient implements Client {
 		TaoLogger.logForce("Beginning load test");
 
 		// inform the proxies we're about to start a load test
-		warmUpClient.initProxyLoadTest();
+		if (clientID == 0) {
+			warmUpClient.initProxyLoadTest();
+		}
 
 		// Begin actual load test
 		ExecutorService clientThreadExecutor = Executors.newFixedThreadPool(concurrentClients,
@@ -940,11 +961,15 @@ public class TaoClient implements Client {
 		}
 
 		// inform the proxies that we just finished the load test
-		warmUpClient.finishProxyLoadTest();
+		if (clientID == 0) {
+			warmUpClient.finishProxyLoadTest();
+		}
 
 		// Collections.sort(sResponseTimes);
 		// TaoLogger.logForce("Throughputs: " + sThroughputs.toString());
 		// TaoLogger.logForce("Response times: " + sResponseTimes.toString());
+
+		TaoLogger.logForce(sProfiler.getClientStatistics());
 
 		TaoLogger.logForce("Response Times over Time:");
 		StringBuilder responseTimesBuilder = new StringBuilder();

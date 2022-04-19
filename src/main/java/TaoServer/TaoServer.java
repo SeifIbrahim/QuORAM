@@ -58,14 +58,13 @@ public class TaoServer implements Server {
 	// Executor for writeBack and initialize tasks
 	protected ExecutorService mWriteBackExecutor;
 
-	// read and write threads will take from a shared pool of file pointers
-	protected final Semaphore mFilePointersSemaphore = new Semaphore(1);
+	// protected final Semaphore mFilePointersSemaphore = new Semaphore(1);
 
 	// shared stack of file pointers
 	protected Stack<RandomAccessFile> mFilePointers;
 
-	// protected Map<ProxyRequest, Long> mReadStartTimes;
-	// protected Map<ProxyRequest, Long> mWriteStartTimes;
+	protected Map<Integer, Long> mReadStartTimes;
+	protected Map<Integer, Long> mWriteStartTimes;
 
 	protected int mUnitId = 0;
 
@@ -76,8 +75,8 @@ public class TaoServer implements Server {
 		mUnitId = unitId;
 
 		// Profiling
-		// mReadStartTimes = new ConcurrentHashMap<>();
-		// mWriteStartTimes = new ConcurrentHashMap<>();
+		mReadStartTimes = new ConcurrentHashMap<>();
+		mWriteStartTimes = new ConcurrentHashMap<>();
 
 		try {
 			// Trace
@@ -149,6 +148,7 @@ public class TaoServer implements Server {
 		int bucketLockIndex = 0;
 
 		// Grab a file pointer from shared pool
+		/*
 		while (true) {
 			try {
 				mFilePointersSemaphore.acquire();
@@ -156,6 +156,7 @@ public class TaoServer implements Server {
 			} catch (InterruptedException e) {
 			}
 		}
+		*/
 
 		RandomAccessFile diskFile = null;
 		synchronized (mFilePointers) {
@@ -230,7 +231,7 @@ public class TaoServer implements Server {
 			synchronized (mFilePointers) {
 				mFilePointers.push(diskFile);
 			}
-			mFilePointersSemaphore.release();
+			// mFilePointersSemaphore.release();
 		}
 
 		// Return null if there is an error
@@ -259,6 +260,7 @@ public class TaoServer implements Server {
 		int timestampIndex = 0;
 
 		// Grab a file pointer from shared pool
+		/*
 		while (true) {
 			try {
 				mFilePointersSemaphore.acquire();
@@ -266,6 +268,7 @@ public class TaoServer implements Server {
 			} catch (InterruptedException e) {
 			}
 		}
+		*/
 
 		RandomAccessFile diskFile = null;
 		synchronized (mFilePointers) {
@@ -354,7 +357,7 @@ public class TaoServer implements Server {
 			synchronized (mFilePointers) {
 				mFilePointers.push(diskFile);
 			}
-			mFilePointersSemaphore.release();
+			// mFilePointersSemaphore.release();
 		}
 
 		// Return false, signaling that the write was not successful
@@ -457,15 +460,14 @@ public class TaoServer implements Server {
 							// Check message type
 							if (messageType == MessageTypes.PROXY_READ_REQUEST) {
 								// Profiling
-								// mReadStartTimes.put(proxyReq, System.currentTimeMillis());
+								// mReadStartTimes.put(proxyReq.hashCode(), System.currentTimeMillis());
 
 								mReadPathExecutor.submit(() -> {
 									TaoLogger.logDebug("Serving a read request");
 									// Read the request path
 									byte[] returnPathData = readPath(proxyReq.getPathID());
 
-									// long startTime = mReadStartTimes.get(proxyReq);
-									// mReadStartTimes.remove(proxyReq);
+									// long startTime = mReadStartTimes.remove(proxyReq.hashCode());
 									// long time = System.currentTimeMillis() - startTime;
 									long time = 0;
 
@@ -515,7 +517,7 @@ public class TaoServer implements Server {
 								});
 							} else if (messageType == MessageTypes.PROXY_WRITE_REQUEST) {
 								// Profiling
-								// mWriteStartTimes.put(proxyReq, System.currentTimeMillis());
+								// mWriteStartTimes.put(proxyReq.hashCode(), System.currentTimeMillis());
 
 								mWriteBackExecutor.submit(() -> {
 									TaoLogger.logDebug("Serving a write request");
@@ -563,8 +565,7 @@ public class TaoServer implements Server {
 										endIndex += pathSize;
 									}
 
-									// long startTime = mWriteStartTimes.get(proxyReq);
-									// mWriteStartTimes.remove(proxyReq);
+									// long startTime = mWriteStartTimes.remove(proxyReq.hashCode());
 									// long time = System.currentTimeMillis() - startTime;
 									long time = 0;
 

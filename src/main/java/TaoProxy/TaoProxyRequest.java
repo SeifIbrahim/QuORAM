@@ -41,6 +41,7 @@ public class TaoProxyRequest implements ProxyRequest {
     @Override
     public void initFromSerialized(byte[] serialized) {
         mType = Ints.fromByteArray(Arrays.copyOfRange(serialized, 0, 4));
+		mTimestamp = Longs.fromByteArray(Arrays.copyOfRange(serialized, 8, 16));
 
         if (mType == MessageTypes.PROXY_READ_REQUEST) {
             mReadPathID = Longs.fromByteArray(Arrays.copyOfRange(serialized, 4, 12));
@@ -50,7 +51,6 @@ public class TaoProxyRequest implements ProxyRequest {
             // TODO: Change this to not need paths anymore
             mReadPathID = -1;
             mPathSize = Ints.fromByteArray(Arrays.copyOfRange(serialized, 4, 8));
-            mTimestamp = Longs.fromByteArray(Arrays.copyOfRange(serialized, 8, 16));
 
 
             int serializedIndex = 16;

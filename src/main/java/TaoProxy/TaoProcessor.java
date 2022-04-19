@@ -264,7 +264,7 @@ public class TaoProcessor implements Processor {
 
 	@Override
 	public void readPath(ClientRequest req) {
-		// mProfiler.readPathStart(req);
+		mProfiler.readPathStart(req);
 
 		try {
 			TaoLogger.logInfo(
@@ -368,11 +368,13 @@ public class TaoProcessor implements Processor {
 			ProxyRequest proxyRequest = mMessageCreator.createProxyRequest();
 			proxyRequest.setPathID(relativeFinalPathID);
 			proxyRequest.setType(MessageTypes.PROXY_READ_REQUEST);
+			// use the timestamp as a unique id here for profiling on the server
+			proxyRequest.setTimestamp(req.getRequestID());
 
 			// Serialize request
 			byte[] requestData = proxyRequest.serialize();
 
-			// mProfiler.readPathPreSend(targetServer, req);
+			mProfiler.readPathPreSend(targetServer, req);
 
 			// Claim either the dedicated channel or create a new one if the dedicated
 			// channel is already being used
@@ -400,7 +402,7 @@ public class TaoProcessor implements Processor {
 							@Override
 							public void completed(Integer result, Void attachment) {
 								// profiling
-								// mProfiler.readPathPostRecv(targetServer, req);
+								mProfiler.readPathPostRecv(targetServer, req);
 
 								// Make sure we read the entire message
 								while (messageTypeAndSize.remaining() > 0) {
@@ -447,10 +449,9 @@ public class TaoProcessor implements Processor {
 											response.setPathID(absoluteFinalPathID);
 
 											long serverProcessingTime = response.getProcessingTime();
-											// mProfiler.readPathServerProcessingTime(targetServer, req,
-											// serverProcessingTime);
+											mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
 
-											// mProfiler.readPathComplete(req);
+											mProfiler.readPathComplete(req);
 
 											// Send response to proxy
 											Runnable serializeProcedure = () -> mProxy.onReceiveResponse(req, response,
@@ -513,7 +514,7 @@ public class TaoProcessor implements Processor {
 											@Override
 											public void completed(Integer result, Void attachment) {
 												// profiling
-												// mProfiler.readPathPostRecv(targetServer, req);
+												mProfiler.readPathPostRecv(targetServer, req);
 
 												// Make sure we read the entire message
 												while (messageTypeAndSize.remaining() > 0) {
@@ -567,10 +568,9 @@ public class TaoProcessor implements Processor {
 
 																	long serverProcessingTime = response
 																			.getProcessingTime();
-																	// mProfiler.readPathServerProcessingTime(targetServer,
-																	// req, serverProcessingTime);
+																	mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
 
-																	// mProfiler.readPathComplete(req);
+																	mProfiler.readPathComplete(req);
 
 																	// Send response to proxy
 																	Runnable serializeProcedure = () -> mProxy
@@ -1136,7 +1136,7 @@ public class TaoProcessor implements Processor {
 		// Make another variable for the write back time because Java says so
 		long finalWriteBackTime = writeBackTime;
 
-		// mProfiler.writeBackStart(finalWriteBackTime);
+		mProfiler.writeBackStart(finalWriteBackTime);
 
 		try {
 			// Create a map that will map each InetSocketAddress to a list of paths that
@@ -1264,7 +1264,7 @@ public class TaoProcessor implements Processor {
 					try {
 						TaoLogger.logDebug("Going to do writeback for server " + serverIndexFinal);
 
-						// mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
+						mProfiler.writeBackPreSend(serverAddr, finalWriteBackTime);
 
 						// Create channel and connect to server
 						AsynchronousSocketChannel channel = AsynchronousSocketChannel.open(mThreadGroup);
@@ -1298,7 +1298,7 @@ public class TaoProcessor implements Processor {
 							@Override
 							public void completed(Integer result, Void attachment) {
 								// profiling
-								// mProfiler.writeBackPostRecv(serverAddr, finalWriteBackTime);
+								mProfiler.writeBackPostRecv(serverAddr, finalWriteBackTime);
 
 								// Flip the byte buffer for reading
 								messageTypeAndSize.flip();
@@ -1339,8 +1339,7 @@ public class TaoProcessor implements Processor {
 											response.initFromSerialized(serialized);
 
 											long serverProcessingTime = response.getProcessingTime();
-											// mProfiler.writeBackServerProcessingTime(serverAddr, finalWriteBackTime,
-											// serverProcessingTime);
+											mProfiler.writeBackServerProcessingTime(serverAddr, finalWriteBackTime, serverProcessingTime);
 
 											// Check to see if the write succeeded or not
 											if (response.getWriteStatus()) {
@@ -1361,7 +1360,7 @@ public class TaoProcessor implements Processor {
 													// If all the servers have successfully responded, we can delete
 													// nodes from subtree
 													if (allReturn) {
-														// mProfiler.writeBackComplete(finalWriteBackTime);
+														mProfiler.writeBackComplete(finalWriteBackTime);
 
 														// Iterate through every path that was written, check if there
 														// are any nodes
@@ -1467,6 +1466,8 @@ public class TaoProcessor implements Processor {
 					mBucketedOrphanBlocks.get(i).stream().mapToDouble(a -> a).average().orElse(0)));
 		}
 		TaoLogger.logForce(numOrphanBlocksBuilder.toString());
+
+		TaoLogger.logForce(mProfiler.getProxyStatistics());
 
 		System.gc();
 	}

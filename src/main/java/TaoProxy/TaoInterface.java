@@ -43,7 +43,7 @@ public class TaoInterface {
 
 	protected void removeOpFromCache(OperationID opID) {
 		Long blockID = mIncompleteCache.get(opID);
-		if(!mIncompleteCache.remove(opID, blockID)) {
+		if (!mIncompleteCache.remove(opID, blockID)) {
 			TaoLogger.logForce("Removing entry from cache failed");
 		}
 		TaoLogger.logInfo("Removed entry from cache");
@@ -153,6 +153,9 @@ public class TaoInterface {
 
 			// Get channel
 			AsynchronousSocketChannel clientChannel = clientReq.getChannel();
+
+			long processingTime = ((TaoProcessor) mProcessor).mProfiler.proxyOperationComplete(clientReq);
+			response.setProcessingTime(processingTime);
 
 			// Create a response to send to client
 			byte[] serializedResponse = response.serialize();

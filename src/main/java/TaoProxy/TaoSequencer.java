@@ -151,6 +151,8 @@ public class TaoSequencer implements Sequencer {
 					response.setWriteStatus(true);
 					response.setReturnTag(mRequestMap.get(req).getTag());
 				}
+				long processingTime = ((TaoProcessor) mProcessor).mProfiler.proxyOperationComplete(req);
+				response.setProcessingTime(processingTime);
 
 				// Get channel
 				AsynchronousSocketChannel clientChannel = req.getChannel();
