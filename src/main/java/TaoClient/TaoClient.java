@@ -460,7 +460,7 @@ public class TaoClient implements Client {
 
 		TaoLogger.logInfo("Starting logical operation " + opID);
 
-		// unique operatioID across all clients
+		// unique opID across all clients
 		sProfiler.readQuorumPreSend(opID);
 
 		// Broadcast read(blockID) to all ORAM units
@@ -543,7 +543,11 @@ public class TaoClient implements Client {
 				}
 			}
 
-			sProfiler.readQuorumPostRecv(opID);
+			if (firstWrite) {
+				// we are not profiling the case where we have to try again after the read
+				// succeeds but the write fails
+				sProfiler.readQuorumPostRecv(opID);
+			}
 
 			// Cancel all pending reads, so that threads are not wasted
 			Iterator<Entry<Integer, Future<ProxyResponse>>> it = readResponsesWaiting.entrySet().iterator();

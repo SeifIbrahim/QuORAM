@@ -50,7 +50,7 @@ public class TaoServer implements Server {
 	public final int READ_PATH_THREADS = 30;
 
 	// Max threads for writeBack or initialize tasks
-	public final int WRITE_BACK_THREADS = 10;
+	public final int WRITE_BACK_THREADS = 100;
 
 	// Executor for readPath tasks
 	protected ExecutorService mReadPathExecutor;
@@ -149,14 +149,9 @@ public class TaoServer implements Server {
 
 		// Grab a file pointer from shared pool
 		/*
-		while (true) {
-			try {
-				mFilePointersSemaphore.acquire();
-				break;
-			} catch (InterruptedException e) {
-			}
-		}
-		*/
+		 * while (true) { try { mFilePointersSemaphore.acquire(); break; } catch
+		 * (InterruptedException e) { } }
+		 */
 
 		RandomAccessFile diskFile = null;
 		synchronized (mFilePointers) {
@@ -239,7 +234,11 @@ public class TaoServer implements Server {
 	}
 
 	@Override
-	public boolean writePath(long pathID, byte[] data, long timestamp) {
+	public boolean writePath(int startIndex, byte[] data, long timestamp) {
+		long pathID = Longs.fromByteArray(Arrays.copyOfRange(data, startIndex, startIndex + 8));
+
+		TaoLogger.logDebug("Going to writepath " + pathID + " with timestamp " + timestamp);
+
 		// Get the directions for this path
 		boolean[] pathDirection = Utility.getPathFromPID(pathID, mServerTreeHeight);
 
@@ -249,9 +248,11 @@ public class TaoServer implements Server {
 		// Index into logical array representing the ORAM tree
 		long indexIntoTree = 0;
 
+		// Keep track of bucket size
+		int mBucketSize = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
+
 		// Indices into the data byte array
-		int dataIndexStart = 0;
-		int dataIndexStop = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
+		int dataIndexStart = startIndex + 8;
 
 		// The current bucket we are looking for
 		int bucketLockIndex = 0;
@@ -261,14 +262,9 @@ public class TaoServer implements Server {
 
 		// Grab a file pointer from shared pool
 		/*
-		while (true) {
-			try {
-				mFilePointersSemaphore.acquire();
-				break;
-			} catch (InterruptedException e) {
-			}
-		}
-		*/
+		 * while (true) { try { mFilePointersSemaphore.acquire(); break; } catch
+		 * (InterruptedException e) { } }
+		 */
 
 		RandomAccessFile diskFile = null;
 		synchronized (mFilePointers) {
@@ -285,18 +281,14 @@ public class TaoServer implements Server {
 				diskFile.seek(offsetInDisk);
 
 				// Write bucket to disk
-				diskFile.write(Arrays.copyOfRange(data, dataIndexStart, dataIndexStop));
+				diskFile.write(data, dataIndexStart, mBucketSize);
 
 				// Update timestamp
 				mMostRecentTimestamp[timestampIndex] = timestamp;
 			}
 
-			// Keep track of bucket size
-			int mBucketSize = (int) TaoConfigs.ENCRYPTED_BUCKET_SIZE;
-
 			// Increment indices
 			dataIndexStart += mBucketSize;
-			dataIndexStop += mBucketSize;
 
 			int level = 1;
 
@@ -317,9 +309,6 @@ public class TaoServer implements Server {
 					indexIntoTree = offsetInDisk / mBucketSize;
 				}
 
-				// Get the data for the current bucket to be writen
-				byte[] dataToWrite = Arrays.copyOfRange(data, dataIndexStart, dataIndexStop);
-
 				// Lock bucket
 				mBucketLocks[bucketLockIndex].lock();
 
@@ -332,7 +321,7 @@ public class TaoServer implements Server {
 					diskFile.seek(offsetInDisk);
 
 					// Write bucket to disk
-					diskFile.write(dataToWrite);
+					diskFile.write(data, dataIndexStart, mBucketSize);
 
 					// Update timestamp
 					mMostRecentTimestamp[timestampIndex] = timestamp;
@@ -342,7 +331,6 @@ public class TaoServer implements Server {
 
 				// Increment indices
 				dataIndexStart += mBucketSize;
-				dataIndexStop += mBucketSize;
 			}
 
 			// Return true, signaling that the write was successful
@@ -517,7 +505,7 @@ public class TaoServer implements Server {
 								});
 							} else if (messageType == MessageTypes.PROXY_WRITE_REQUEST) {
 								// Profiling
-								// mWriteStartTimes.put(proxyReq.hashCode(), System.currentTimeMillis());
+								mWriteStartTimes.put(proxyReq.hashCode(), System.currentTimeMillis());
 
 								mWriteBackExecutor.submit(() -> {
 									TaoLogger.logDebug("Serving a write request");
@@ -536,38 +524,22 @@ public class TaoServer implements Server {
 									// Where to start the current write
 									int startIndex = 0;
 
-									// Where to end the current write
-									int endIndex = pathSize;
-
 									// Variables to be used while writing
-									byte[] currentPath;
-									long currentPathID;
-									byte[] encryptedPath;
 									long timestamp = proxyReq.getTimestamp();
 									// Write each path
 									while (startIndex < dataToWrite.length) {
-										// Get the current path and path id from the data to write
-										// TODO: Generalize this somehow, possibly add a method to ProxyRequest
-										currentPath = Arrays.copyOfRange(dataToWrite, startIndex, endIndex);
-
-										currentPathID = Longs.fromByteArray(Arrays.copyOfRange(currentPath, 0, 8));
-										encryptedPath = Arrays.copyOfRange(currentPath, 8, currentPath.length);
-
 										// Write path
-										TaoLogger.logDebug("Going to writepath " + currentPathID + " with timestamp "
-												+ proxyReq.getTimestamp());
-										if (!writePath(currentPathID, encryptedPath, timestamp)) {
+										if (!writePath(startIndex, dataToWrite, timestamp)) {
 											success = false;
 										}
 
-										// Increment start and end indexes
+										// Increment start index
 										startIndex += pathSize;
-										endIndex += pathSize;
 									}
 
-									// long startTime = mWriteStartTimes.remove(proxyReq.hashCode());
-									// long time = System.currentTimeMillis() - startTime;
-									long time = 0;
+									long startTime = mWriteStartTimes.remove(proxyReq.hashCode());
+									long time = System.currentTimeMillis() - startTime;
+									// long time = 0;
 
 									// Create a server response
 									ServerResponse writeResponse = mMessageCreator.createServerResponse();
@@ -629,35 +601,15 @@ public class TaoServer implements Server {
 									// Where to start the current write
 									int startIndex = 0;
 
-									// Where to end the current write
-									int endIndex = pathSize;
-
-									// Variables to be used while writing
-									byte[] currentPath;
-									long currentPathID;
-									byte[] encryptedPath;
-
 									// Write each path
 									while (startIndex < dataToWrite.length) {
-										// Get the current path and path id from the data to write
-										// TODO: Generalize this somehow, possibly add a method to ProxyRequest
-										currentPath = Arrays.copyOfRange(dataToWrite, startIndex, endIndex);
-										currentPathID = Longs.fromByteArray(Arrays.copyOfRange(currentPath, 0, 8));
-										encryptedPath = Arrays.copyOfRange(currentPath, 8, currentPath.length);
-										TaoPath path = new TaoPath(currentPathID);
-										path.initFromSerialized(encryptedPath);
-										// path.print();
-
 										// Write path
-										TaoLogger.logDebug("Going to writepath " + currentPathID + " with timestamp "
-												+ proxyReq.getTimestamp());
-										if (!writePath(currentPathID, encryptedPath, 0)) {
+										if (!writePath(startIndex, dataToWrite, 0)) {
 											success = false;
 										}
 
-										// Increment start and end indexes
+										// Increment start index
 										startIndex += pathSize;
-										endIndex += pathSize;
 									}
 
 									// To be used for server response
@@ -690,9 +642,11 @@ public class TaoServer implements Server {
 										// Clear buffer
 										returnMessageBuffer.clear();
 									} catch (Exception e) {
+										e.printStackTrace();
 										try {
 											channel.close();
 										} catch (IOException e1) {
+											e1.printStackTrace();
 										}
 									} finally {
 										// start processing the next message

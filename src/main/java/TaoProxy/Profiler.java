@@ -8,8 +8,6 @@ import java.net.InetSocketAddress;
 public interface Profiler {
     void writeStatistics();
 
-    void readPathStart(ClientRequest req);
-
     void readPathComplete(ClientRequest req);
 
     void writeBackStart(long writeBackTime);
@@ -52,4 +50,8 @@ public interface Profiler {
 	String getClientStatistics();
 
 	String getProxyStatistics();
+
+	void reachedInterface(ClientRequest clientReq);
+
+	void answerRequestComplete(ClientRequest req);
 }

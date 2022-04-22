@@ -59,6 +59,7 @@ public class TaoInterface {
 		int type = clientReq.getType();
 		long blockID = clientReq.getBlockID();
 		TaoLogger.logInfo("Got a request with opID " + opID);
+		((TaoProcessor) mProcessor).mProfiler.reachedInterface(clientReq);
 
 		if (type == MessageTypes.CLIENT_READ_REQUEST) {
 			TaoLogger.logInfo("Got a read request with opID " + opID);

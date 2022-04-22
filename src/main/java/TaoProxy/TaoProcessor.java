@@ -264,8 +264,6 @@ public class TaoProcessor implements Processor {
 
 	@Override
 	public void readPath(ClientRequest req) {
-		mProfiler.readPathStart(req);
-
 		try {
 			TaoLogger.logInfo(
 					"Starting a readPath for blockID " + req.getBlockID() + " and request #" + req.getRequestID());
@@ -449,7 +447,8 @@ public class TaoProcessor implements Processor {
 											response.setPathID(absoluteFinalPathID);
 
 											long serverProcessingTime = response.getProcessingTime();
-											mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
+											mProfiler.readPathServerProcessingTime(targetServer, req,
+													serverProcessingTime);
 
 											mProfiler.readPathComplete(req);
 
@@ -568,7 +567,8 @@ public class TaoProcessor implements Processor {
 
 																	long serverProcessingTime = response
 																			.getProcessingTime();
-																	mProfiler.readPathServerProcessingTime(targetServer, req, serverProcessingTime);
+																	mProfiler.readPathServerProcessingTime(targetServer,
+																			req, serverProcessingTime);
 
 																	mProfiler.readPathComplete(req);
 
@@ -691,9 +691,10 @@ public class TaoProcessor implements Processor {
 		// of a node that has been flushed to
 		mSubtreeRWL.writeLock().lock();
 		mSubtree.addPath(decryptedPath, mTimestamp.get());
+		mSubtreeRWL.writeLock().unlock();
 
 		// Profiling
-		// mProfiler.addPathTime(System.currentTimeMillis() - preAddPathTime);
+		mProfiler.addPathTime(System.currentTimeMillis() - preAddPathTime);
 
 		// Update the response map entry for this request, marking it as returned
 		ResponseMapEntry responseMapEntry = mResponseMap.get(req);
@@ -707,6 +708,8 @@ public class TaoProcessor implements Processor {
 					+ req.getClientAddress().getHostName() + " was a fake read, and real read has responded earlier");
 			// The real read has already appeared, so we can answer the client
 
+			mProfiler.answerRequestComplete(req);
+
 			// Send the data to the sequencer
 			mSequencer.onReceiveResponse(req, resp, responseMapEntry.getData(), responseMapEntry.getTag());
 
@@ -714,10 +717,8 @@ public class TaoProcessor implements Processor {
 			mResponseMap.remove(req);
 
 			// We are done
-			mSubtreeRWL.writeLock().unlock();
 			return;
 		}
-		mSubtreeRWL.writeLock().unlock();
 
 		// log the number of blocks in the subtree
 		logNumBlocks();
@@ -812,6 +813,9 @@ public class TaoProcessor implements Processor {
 				if (mResponseMap.get(currentRequest).getRetured()) {
 					TaoLogger.logDebug("answerRequest requestID " + currentRequest.getRequestID() + " from host "
 							+ currentRequest.getClientAddress().getHostName() + " is going to be responded to");
+
+					mProfiler.answerRequestComplete(currentRequest);
+
 					// Send the data to sequencer
 					mSequencer.onReceiveResponse(currentRequest, resp, foundData, foundTag);
 
@@ -1339,7 +1343,8 @@ public class TaoProcessor implements Processor {
 											response.initFromSerialized(serialized);
 
 											long serverProcessingTime = response.getProcessingTime();
-											mProfiler.writeBackServerProcessingTime(serverAddr, finalWriteBackTime, serverProcessingTime);
+											mProfiler.writeBackServerProcessingTime(serverAddr, finalWriteBackTime,
+													serverProcessingTime);
 
 											// Check to see if the write succeeded or not
 											if (response.getWriteStatus()) {

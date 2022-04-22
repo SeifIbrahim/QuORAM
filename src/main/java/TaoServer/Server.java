@@ -17,10 +17,11 @@ public interface Server {
      * @param data
      * @return if the write was successful or not
      */
-    boolean writePath(long pathID, byte[] data, long timestamp);
+	boolean writePath(int startIndex, byte[] data, long timestamp);
 
     /**
      * @brief Method to run proxy indefinitely for serving proxy
      */
     void run();
+
 }

@@ -55,10 +55,8 @@ public class TaoServerTest {
         // Serialize and encrypt path
         byte[] serializedPath = cryptoUtil.encryptPath(testPath);
 
-        // Remove the id bytes since we are passing this straight into the writePath function
-        serializedPath = Arrays.copyOfRange(serializedPath, 8, serializedPath.length);
         // Write path to server
-        server.writePath(pathID, serializedPath, 0);
+        server.writePath(0, serializedPath, 0);
 
         // Read path back from server
         byte[] read = server.readPath(pathID);
