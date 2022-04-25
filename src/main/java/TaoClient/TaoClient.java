@@ -18,7 +18,6 @@ import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.Channel;
 import java.nio.channels.CompletionHandler;
 import java.nio.BufferUnderflowException;
-import java.security.SecureRandom;
 import java.util.*;
 import java.util.Map.Entry;
 import java.util.concurrent.*;
@@ -110,7 +109,7 @@ public class TaoClient implements Client {
 
 	public static boolean randomQuorum;
 	// how many of the most recent latencies we should keep around to get the median
-	public static final int NUM_LATENCIES = 1000;
+	public static final int NUM_LATENCIES = 500;
 	// keeps a list of the most recent NUM_LATENCIES for each site (or replica)
 	public Map<Integer, Deque<Long>> mSiteLatencies = new HashMap<Integer, Deque<Long>>();
 	public ReadWriteLock mSiteLatenciesLock = new ReentrantReadWriteLock();
@@ -389,7 +388,9 @@ public class TaoClient implements Client {
 			}
 		}
 
-		if (!randomQuorum) {
+		// 20% chance of picking randomly in case on of the high latency sites starts
+		// responding more quickly
+		if (!randomQuorum && new Random().nextDouble() < 0.1) {
 			// pick the available site with the lowest latency by averaging the latency
 			mSiteLatenciesLock.readLock().lock();
 			Optional<Entry<Integer, Deque<Long>>> site_entry = mSiteLatencies.entrySet().stream()
@@ -496,49 +497,53 @@ public class TaoClient implements Client {
 				Iterator<Entry<Integer, Future<ProxyResponse>>> it = readResponsesWaiting.entrySet().iterator();
 				while (it.hasNext()) {
 					Map.Entry<Integer, Future<ProxyResponse>> entry = (Entry<Integer, Future<ProxyResponse>>) it.next();
-					if (entry.getValue().isDone()) {
-						try {
-							TaoLogger.logInfo("From proxy " + entry.getKey() + ": got value "
-									+ entry.getValue().get().getReturnData()[0] + " with tag "
-									+ entry.getValue().get().getReturnTag());
-
-							if (!randomQuorum) {
-								// record the read latency
-								mSiteLatenciesLock.writeLock().lock();
-								mSiteLatencies.putIfAbsent(entry.getKey(), new ArrayDeque<Long>());
-								Deque<Long> siteLatencies = mSiteLatencies.get(entry.getKey());
-								if (siteLatencies.size() == NUM_LATENCIES) {
-									siteLatencies.removeFirst();
-								}
-								siteLatencies.addLast(System.currentTimeMillis() - timeStart.get(entry.getKey()));
-								mSiteLatenciesLock.writeLock().unlock();
+					if (entry.getValue().isDone()
+							|| System.currentTimeMillis() > timeStart.get(entry.getKey()) + TIMEOUT_DELAY) {
+						if (!randomQuorum) {
+							// record the read latency
+							mSiteLatenciesLock.writeLock().lock();
+							mSiteLatencies.putIfAbsent(entry.getKey(), new ArrayDeque<Long>());
+							Deque<Long> siteLatencies = mSiteLatencies.get(entry.getKey());
+							if (siteLatencies.size() == NUM_LATENCIES) {
+								siteLatencies.removeFirst();
 							}
-
-							byte[] val = entry.getValue().get().getReturnData();
-							Tag responseTag = entry.getValue().get().getReturnTag();
-
-							// Set writeback value to the value with the greatest tag
-							if (tag == null || responseTag.compareTo(tag) >= 0) {
-								writebackVal = val;
-								tag = responseTag;
-							}
-
-							it.remove();
-							readResponses.add(entry.getKey());
-
-							markResponsive(entry.getKey());
-						} catch (Exception e) {
-							TaoLogger.logForce(e.toString());
-							e.printStackTrace();
+							siteLatencies.addLast(System.currentTimeMillis() - timeStart.get(entry.getKey()));
+							mSiteLatenciesLock.writeLock().unlock();
 						}
-					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + TIMEOUT_DELAY) {
-						entry.getValue().cancel(true);
-						TaoLogger.logInfo("Timed out during read waiting for proxy " + entry.getKey());
-						it.remove();
 
-						// Remove unit from quorum and mark unresponsive
-						quorum.remove(entry.getKey());
-						markUnresponsive(entry.getKey());
+						if (entry.getValue().isDone()) {
+							try {
+								TaoLogger.logInfo("From proxy " + entry.getKey() + ": got value "
+										+ entry.getValue().get().getReturnData()[0] + " with tag "
+										+ entry.getValue().get().getReturnTag());
+
+								byte[] val = entry.getValue().get().getReturnData();
+								Tag responseTag = entry.getValue().get().getReturnTag();
+
+								// Set writeback value to the value with the greatest tag
+								if (tag == null || responseTag.compareTo(tag) >= 0) {
+									writebackVal = val;
+									tag = responseTag;
+								}
+
+								it.remove();
+								readResponses.add(entry.getKey());
+
+								markResponsive(entry.getKey());
+							} catch (Exception e) {
+								TaoLogger.logForce(e.toString());
+								e.printStackTrace();
+							}
+						} else {
+							// timeout
+							entry.getValue().cancel(true);
+							TaoLogger.logInfo("Timed out during read waiting for proxy " + entry.getKey());
+							it.remove();
+
+							// Remove unit from quorum and mark unresponsive
+							quorum.remove(entry.getKey());
+							markUnresponsive(entry.getKey());
+						}
 					}
 				}
 			}
@@ -581,52 +586,56 @@ public class TaoClient implements Client {
 				while (it.hasNext()) {
 					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry<Integer, Future<ProxyResponse>>) it
 							.next();
-					if (entry.getValue().isDone()) {
-						try {
-							TaoLogger.logInfo("Got ack from proxy " + entry.getKey());
-
-							if (!randomQuorum) {
-								// record the write latency
-								mSiteLatenciesLock.writeLock().lock();
-								mSiteLatencies.putIfAbsent(entry.getKey(), new ArrayDeque<Long>());
-								Deque<Long> siteLatencies = mSiteLatencies.get(entry.getKey());
-								if (siteLatencies.size() == NUM_LATENCIES) {
-									siteLatencies.removeFirst();
-								}
-								siteLatencies.addLast(System.currentTimeMillis() - timeStart.get(entry.getKey()));
-								mSiteLatenciesLock.writeLock().unlock();
+					if (entry.getValue().isDone()
+							|| System.currentTimeMillis() > timeStart.get(entry.getKey()) + TIMEOUT_DELAY) {
+						if (!randomQuorum) {
+							// record the write latency
+							mSiteLatenciesLock.writeLock().lock();
+							mSiteLatencies.putIfAbsent(entry.getKey(), new ArrayDeque<Long>());
+							Deque<Long> siteLatencies = mSiteLatencies.get(entry.getKey());
+							if (siteLatencies.size() == NUM_LATENCIES) {
+								siteLatencies.removeFirst();
 							}
+							siteLatencies.addLast(System.currentTimeMillis() - timeStart.get(entry.getKey()));
+							mSiteLatenciesLock.writeLock().unlock();
+						}
+
+						if (entry.getValue().isDone()) {
+							try {
+								TaoLogger.logInfo("Got ack from proxy " + entry.getKey());
+
+								it.remove();
+								writeResponses.add(entry.getKey());
+								markResponsive(entry.getKey());
+
+								if (entry.getValue().get().getFailed()) {
+									// we got a negative ack in the write p hase so abort the operation
+									// cancel waiting on responses so threa ds aren't wasted
+									while (it.hasNext()) {
+										Map.Entry<Integer, Future<ProxyResponse>> entry2 = (Entry<Integer, Future<ProxyResponse>>) it
+												.next();
+										entry2.getValue().cancel(true);
+										it.remove();
+									}
+									return null;
+								}
+							} catch (Exception e) {
+								TaoLogger.logInfo(e.toString());
+								e.printStackTrace();
+							}
+						} else {
+							// timeout
+							entry.getValue().cancel(true);
+							TaoLogger.logInfo("Timed out during write waiting for proxy " + entry.getKey());
 
 							it.remove();
-							writeResponses.add(entry.getKey());
-							markResponsive(entry.getKey());
 
-							if (entry.getValue().get().getFailed()) {
-								// we got a negative ack in the write p hase so abort the operation
-								// cancel waiting on responses so threa ds aren't wasted
-								while (it.hasNext()) {
-									Map.Entry<Integer, Future<ProxyResponse>> entry2 = (Entry<Integer, Future<ProxyResponse>>) it
-											.next();
-									entry2.getValue().cancel(true);
-									it.remove();
-								}
-								return null;
-							}
-						} catch (Exception e) {
-							TaoLogger.logInfo(e.toString());
-							e.printStackTrace();
+							// Remove unit from quorum and mark unresponsive
+							quorum.remove(entry.getKey());
+							// remove from the read responses so that we read from someone else
+							readResponses.remove(entry.getKey());
+							markUnresponsive(entry.getKey());
 						}
-					} else if (System.currentTimeMillis() > timeStart.get(entry.getKey()) + TIMEOUT_DELAY) {
-						entry.getValue().cancel(true);
-						TaoLogger.logInfo("Timed out during write waiting for proxy " + entry.getKey());
-
-						it.remove();
-
-						// Remove unit from quorum and mark unresponsive
-						quorum.remove(entry.getKey());
-						// remove from the read responses so that we read from someone else
-						readResponses.remove(entry.getKey());
-						markUnresponsive(entry.getKey());
 					}
 				}
 			}
@@ -891,7 +900,7 @@ public class TaoClient implements Client {
 			double zipfExp, int clientID) throws InterruptedException {
 		// Warm up the system
 		TaoClient warmUpClient = new TaoClient((short) -1);
-		SecureRandom sr = new SecureRandom();
+		Random sr = new Random();
 		long totalNodes = (long) Math.pow(2, TaoConfigs.TREE_HEIGHT + 1) - 1;
 		long totalBlocks = totalNodes * TaoConfigs.BLOCKS_IN_BUCKET;
 		PrimitiveIterator.OfLong blockIDGenerator = sr.longs(warmupOperations, 0, totalBlocks - 1).iterator();
@@ -927,7 +936,7 @@ public class TaoClient implements Client {
 				TaoClient client = new TaoClient(j);
 
 				// Random number generator
-				SecureRandom r = new SecureRandom();
+				Random r = new Random();
 
 				ZipfDistribution zipf = new ZipfDistribution((int) totalBlocks, zipfExp);
 
