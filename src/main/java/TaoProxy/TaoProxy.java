@@ -189,6 +189,8 @@ public class TaoProxy implements Proxy {
 
 			Executor initExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
 			CompletionService<Integer> initCompletion = new ExecutorCompletionService<Integer>(initExecutor);
+			
+			long start = System.currentTimeMillis();
 
 			// Loop to write each path to server
 			for (int i = 0; i < totalPaths; i++) {
@@ -243,6 +245,9 @@ public class TaoProxy implements Proxy {
 				Integer pathID = result.get();
 				TaoLogger.logForce("Wrote path " + pathID);
 			}
+			
+			TaoLogger.logForce("Initialization time: " + (System.currentTimeMillis() - start) + " ms");
+
 		} catch (Exception e) {
 			e.printStackTrace();
 		}

@@ -100,13 +100,12 @@ public class TaoSubtree implements Subtree {
 		boolean added = false;
 
 		// Check if subtree is empty
-		synchronized (mRootLock) {
-			if (mRoot == null) {
-				TaoLogger
-						.logDebug("Going to add pathid " + path.getPathID() + " to subtree " + " i think root is null");
-				// If empty, initialize root with root of given path
+		if (mRoot == null) {
+			TaoLogger.logDebug("Going to add pathid " + path.getPathID() + " to subtree " + " i think root is null");
+			// If empty, initialize root with root of given path
 
-				// First we acquire the root lock
+			// First we acquire the root lock
+			synchronized (mRootLock) {
 				// Once we acquire the lock, we make sure that another thread hasn't already
 				// initialized the root
 				if (mRoot == null) {
@@ -114,89 +113,13 @@ public class TaoSubtree implements Subtree {
 					added = true;
 				}
 			}
-
-			// If we just added the root, we need to add the blocks to the block map
-			if (added) {
-				for (Block b : mRoot.getFilledBlocks()) {
-					mBlockMap.put(b.getBlockID(), mRoot);
-					TaoLogger.logBlock(b.getBlockID(), "subtree add");
-				}
-			}
-
-			// Get the directions for this path
-			boolean[] pathDirection = Utility.getPathFromPID(path.getPathID(), TaoConfigs.TREE_HEIGHT);
-
-			// Keep track of current bucket
-			SubtreeBucket currentBucket = mRoot;
-			if (currentBucket == null) {
-				TaoLogger.logForce("currentBucket null TaoSubtree");
-				System.exit(0);
-			}
-
-			// Update the timestamp of this bucket
-			currentBucket.setUpdateTime(timestamp);
-
-			// Keep track of where on the path we are
-			int bucketLevel = 1;
-			for (Boolean right : pathDirection) {
-				// Determine whether the path is turning left or right from current bucket
-				if (right) {
-					// Attempt to initialize right bucket
-					added = currentBucket.setRight(path.getBucket(bucketLevel), bucketLevel);
-					currentBucket.getRight().setUpdateTime(timestamp);
-
-					// If we initialized the child, we should add the blocks to the block map
-					if (added) {
-						for (Block b : currentBucket.getRight().getFilledBlocks()) {
-							mBlockMap.put(b.getBlockID(), currentBucket.getRight());
-							TaoLogger.logBlock(b.getBlockID(), "subtree add");
-						}
-					}
-
-					// Move to next bucket
-					currentBucket = currentBucket.getRight();
-				} else {
-					// Attempt to initialize left bucket
-					added = currentBucket.setLeft(path.getBucket(bucketLevel), bucketLevel);
-					currentBucket.getLeft().setUpdateTime(timestamp);
-
-					// If we initialized the child, we should add the blocks to the block map
-					if (added) {
-						for (Block b : currentBucket.getLeft().getFilledBlocks()) {
-							mBlockMap.put(b.getBlockID(), currentBucket.getLeft());
-							TaoLogger.logBlock(b.getBlockID(), "subtree add");
-						}
-					}
-
-					// Move to next bucket
-					currentBucket = currentBucket.getLeft();
-				}
-
-				// Increment the level of the path
-				bucketLevel++;
-			}
-		}
-	}
-
-	@Override
-	public void addPath(Path path) {
-		TaoLogger.logDebug("Going to add pathid " + path.getPathID() + " to subtree");
-
-		// Boolean to keep track of if a bucket was added to the current level
-		boolean added = false;
-
-		// Check if subtree is empty
-		if (mRoot == null) {
-			// If empty, initialize root with root of given path
-			mRoot = new TaoSubtreeBucket(path.getBucket(0));
-			added = true;
 		}
 
 		// If we just added the root, we need to add the blocks to the block map
 		if (added) {
 			for (Block b : mRoot.getFilledBlocks()) {
-				TaoLogger.logDebug("Adding blockID " + b.getBlockID());
 				mBlockMap.put(b.getBlockID(), mRoot);
+				TaoLogger.logBlock(b.getBlockID(), "subtree add");
 			}
 		}
 
@@ -205,12 +128,19 @@ public class TaoSubtree implements Subtree {
 
 		// Keep track of current bucket
 		SubtreeBucket currentBucket = mRoot;
+		if (currentBucket == null) {
+			TaoLogger.logForce("currentBucket null TaoSubtree");
+			System.exit(0);
+		}
+
+		// Update the timestamp of this bucket
+		currentBucket.setUpdateTime(timestamp);
 
 		// Keep track of where on the path we are
 		int bucketLevel = 1;
 		for (Boolean right : pathDirection) {
 			if (mOrphanBlocks != null) {
-				// If we a block in the path is in our orphan blocks we replace
+				// If a block in the path is in our orphan blocks we replace
 				// it with the orphan block and remove the orphan block
 				Bucket bucket = path.getBucket(bucketLevel);
 				Block[] blocks = bucket.getBlocks();
@@ -224,15 +154,18 @@ public class TaoSubtree implements Subtree {
 					}
 				}
 			}
+
 			// Determine whether the path is turning left or right from current bucket
 			if (right) {
 				// Attempt to initialize right bucket
 				added = currentBucket.setRight(path.getBucket(bucketLevel), bucketLevel);
+				currentBucket.getRight().setUpdateTime(timestamp);
 
 				// If we initialized the child, we should add the blocks to the block map
 				if (added) {
 					for (Block b : currentBucket.getRight().getFilledBlocks()) {
 						mBlockMap.put(b.getBlockID(), currentBucket.getRight());
+						TaoLogger.logBlock(b.getBlockID(), "subtree add");
 					}
 				}
 
@@ -241,11 +174,13 @@ public class TaoSubtree implements Subtree {
 			} else {
 				// Attempt to initialize left bucket
 				added = currentBucket.setLeft(path.getBucket(bucketLevel), bucketLevel);
+				currentBucket.getLeft().setUpdateTime(timestamp);
 
 				// If we initialized the child, we should add the blocks to the block map
 				if (added) {
 					for (Block b : currentBucket.getLeft().getFilledBlocks()) {
 						mBlockMap.put(b.getBlockID(), currentBucket.getLeft());
+						TaoLogger.logBlock(b.getBlockID(), "subtree add");
 					}
 				}
 
@@ -256,6 +191,11 @@ public class TaoSubtree implements Subtree {
 			// Increment the level of the path
 			bucketLevel++;
 		}
+	}
+
+	@Override
+	public void addPath(Path path) {
+		addPath(path, 0);
 	}
 
 	@Override
