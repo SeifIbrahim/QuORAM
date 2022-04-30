@@ -543,10 +543,11 @@ public class TaoProcessor implements Processor {
 																}
 
 																// Close channel
-																/*
-																 * try { newChannelToServer.close(); } catch
-																 * (IOException e) { e.printStackTrace(); }
-																 */
+																try {
+																	newChannelToServer.close();
+																} catch (IOException e) {
+																	e.printStackTrace();
+																}
 
 																// Flip the byte buffer for reading
 																pathInBytes.flip();
@@ -800,9 +801,6 @@ public class TaoProcessor implements Processor {
 						// Assign block with blockID == req.getBlockID() to a new random path in
 						// position map
 						canPutInPositionMap = true;
-						int newPathID = mCryptoUtil.getRandomPathID();
-						TaoLogger.logInfo("Assigning blockID " + req.getBlockID() + " to path " + newPathID);
-						mPositionMap.setBlockPosition(req.getBlockID(), newPathID);
 					}
 				}
 
@@ -831,6 +829,14 @@ public class TaoProcessor implements Processor {
 
 			// Release lock
 			requestListLock.writeLock().unlock();
+
+			if (canPutInPositionMap) {
+				// Assign block with blockID == req.getBlockID() to a new random path in
+				// position map
+				int newPathID = mCryptoUtil.getRandomPathID();
+				TaoLogger.logInfo("Assigning blockID " + req.getBlockID() + " to path " + newPathID);
+				mPositionMap.setBlockPosition(req.getBlockID(), newPathID);
+			}
 		} else {
 			TaoLogger.logInfo("answerRequest requestID " + req.getRequestID() + " from host "
 					+ req.getClientAddress().getHostName() + " was a fake read, and real read has not responded yet");
@@ -1033,23 +1039,20 @@ public class TaoProcessor implements Processor {
 		mTimestamp.getAndIncrement();
 	}
 
-	public void update_timestamp(long pathID) {
-		// update the path timestamp since a block on it was just written
-		mSubtreeRWL.writeLock().lock();
-		Path pathToUpdate = mSubtree.getPath(pathID);
-		if (pathToUpdate == null) {
-			mSubtreeRWL.writeLock().unlock();
-			return;
+	public void update_timestamp(long blockID) {
+		// update the bucket timestamp if possible
+		Bucket bucket = mSubtree.getBucketWithBlock(blockID);
+		if (bucket != null) {
+			bucket.setUpdateTime(mTimestamp.get());
 		}
-		Bucket buckets[] = pathToUpdate.getBuckets();
-		for (Bucket bucket : buckets) {
-			if (bucket != null) {
-				bucket.setUpdateTime(mTimestamp.get());
-			}
-		}
-		mSubtreeRWL.writeLock().unlock();
 
 		// Add this path to the write queue
+		long pathID = mPositionMap.getBlockPosition(blockID);
+		if (pathID == -1) {
+			TaoLogger.logForce(
+					"Path ID for blockID " + blockID + " was unmapped during o_write. This should never happen!");
+			System.exit(1);
+		}
 		synchronized (mWriteQueue) {
 			TaoLogger.logInfo("Adding " + pathID + " to mWriteQueue");
 			mWriteQueue.add(pathID);
@@ -1068,17 +1071,6 @@ public class TaoProcessor implements Processor {
 		// Get all the blocks from the stash and blocks from this path
 		ArrayList<Block> blocksToFlush = new ArrayList<>();
 		blocksToFlush.addAll(mStash.getAllBlocks());
-
-		/*
-		 * for (int i = 0; i < blocksToFlush.size(); i++) { if
-		 * (mInterface.mBlocksInCache.containsKey(blocksToFlush.get(i).getBlockID())) {
-		 * blocksToFlush.remove(i); i--; } }
-		 */
-
-		if (mSubtree.getPath(pathID) == null) {
-			TaoLogger.logForce("Error from TaoProcessor.getHeap: path " + pathID + " is null");
-			System.exit(1);
-		}
 
 		Bucket[] buckets = mSubtree.getPath(pathID).getBuckets();
 		for (Bucket b : buckets) {
@@ -1366,24 +1358,23 @@ public class TaoProcessor implements Processor {
 													// nodes from subtree
 													if (allReturn) {
 														mProfiler.writeBackComplete(finalWriteBackTime);
+														Set<Long> set = new HashSet<>();
+														for (Long l : mPathReqMultiSet.elementSet()) {
+															set.add(l);
+														}
 
 														// Iterate through every path that was written, check if there
 														// are any nodes
 														// we can delete
+														mSubtreeRWL.writeLock().lock();
 														for (Long pathID : allWriteBackIDs) {
 															// Upon response, delete all nodes in subtree whose
-															// timestamp
-															// is <= timeStamp, and are not in mPathReqMultiSet
-															// TODO: should pass in entire mPathReqMultiSet instead
-															Set<Long> set = new HashSet<>();
-															for (Long l : mPathReqMultiSet.elementSet()) {
-																set.add(l);
-															}
-															mSubtreeRWL.writeLock().lock();
+															// timestamp is <= timeStamp, and are not in
+															// mPathReqMultiSet
 															mSubtree.deleteNodes(pathID, finalWriteBackTime, set);
-															mSubtreeRWL.writeLock().unlock();
-															logNumBlocks();
 														}
+														mSubtreeRWL.writeLock().unlock();
+														logNumBlocks();
 													}
 												}
 											}

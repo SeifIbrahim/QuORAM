@@ -46,16 +46,16 @@ tmux kill-session -t $CLIENT_SESSION > /dev/null 2>&1 || true
 #fi
 
 # launch servers
-_tmux_process_command $SERVER_SESSION 0 'C-c' "./scripts/run-server.sh 0"
-_tmux_process_command $SERVER_SESSION 1 'C-c' "./scripts/run-server.sh 1"
-_tmux_process_command $SERVER_SESSION 2 'C-c' "./scripts/run-server.sh 2"
+_tmux_process_command $SERVER_SESSION 0 'C-c' "./scripts/run-server.sh 0 > server0.log"
+_tmux_process_command $SERVER_SESSION 1 'C-c' "./scripts/run-server.sh 1 > server1.log"
+_tmux_process_command $SERVER_SESSION 2 'C-c' "./scripts/run-server.sh 2 > server2.log"
 
 echo 'Servers launched.'
 
 # launch proxies
-_tmux_process_command $PROXY_SESSION 0 'C-c' "./scripts/run-proxy.sh 0"
-_tmux_process_command $PROXY_SESSION 1 'C-c' "./scripts/run-proxy.sh 1"
-_tmux_process_command $PROXY_SESSION 2 'C-c' "./scripts/run-proxy.sh 2"
+_tmux_process_command $PROXY_SESSION 0 'C-c' "./scripts/run-proxy.sh 0 > proxy0.log"
+_tmux_process_command $PROXY_SESSION 1 'C-c' "./scripts/run-proxy.sh 1 > proxy1.log"
+_tmux_process_command $PROXY_SESSION 2 'C-c' "./scripts/run-proxy.sh 2 > proxy2.log"
 
 echo 'Proxies launched.'
 
@@ -67,6 +67,6 @@ rw_ratio=0.5
 zipf=0.9
 quorum_type="nearest"
 
-_tmux_process_command $CLIENT_SESSION 0 'C-c' "./scripts/run-client.sh $num_clients $loadtest_length $rw_ratio $zipf $num_warmup $quorum_type 0"
+_tmux_process_command $CLIENT_SESSION 0 'C-c' "./scripts/run-client.sh $num_clients $loadtest_length $rw_ratio $zipf $num_warmup $quorum_type 0 > client.log"
 
 echo 'Client launched.'

@@ -113,6 +113,7 @@ public class TaoInterface {
 			 */
 
 			mSequencer.onReceiveRequest(clientReq);
+			mProcessor.readPath(clientReq);
 		} else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
 			TaoLogger.logInfo("Got a write request with opID " + opID);
 			// Create a ProxyResponse
@@ -135,21 +136,12 @@ public class TaoInterface {
 					mProcessor.writeDataToBlock(blockID, clientReq.getData(), clientReq.getTag());
 					TaoLogger.logInfo("Wrote data to block");
 				}
-				// this needs to be here so that we can guarantee the block doesn't get deleted
-				// before we write to it
 
 				// Remove operation from incomplete cache
 				removeOpFromCache(opID);
 
-				// update path timestamps
-				long pathID = mProcessor.mPositionMap.getBlockPosition(blockID);
-				if (pathID == -1) {
-					TaoLogger.logForce("Path ID for blockID " + blockID
-							+ " was unmapped during o_write. This should never happen!");
-					System.exit(1);
-				}
 				// queues this path to be written back and updates the block timestamp
-				mProcessor.update_timestamp(pathID);
+				mProcessor.update_timestamp(blockID);
 			}
 
 			// Get channel

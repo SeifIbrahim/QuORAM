@@ -119,7 +119,7 @@ public class TaoClient implements Client {
 			// Initialize needed constants
 			TaoConfigs.initConfiguration();
 
-			TaoLogger.logLevel = TaoLogger.LOG_OFF;
+			TaoLogger.logLevel = TaoLogger.LOG_INFO;
 
 			TaoLogger.logInfo("making client");
 
@@ -322,11 +322,6 @@ public class TaoClient implements Client {
 							// Get the ProxyResponse from map and initialize it
 							ProxyResponse clientAnswer = mResponseWaitMap.get(proxyResponse.getClientRequestID());
 							clientAnswer.initFromSerialized(requestBytes);
-
-							sProfiler.clientRequestPostRecv(proxyResponse.getClientRequestID(),
-									proxyResponse.getWriteStatus(), unitID);
-							sProfiler.proxyProcessingTime(proxyResponse.getClientRequestID(),
-									proxyResponse.getWriteStatus(), unitID, proxyResponse.getProcessingTime());
 
 							// Notify thread waiting for this response id
 							synchronized (clientAnswer) {
@@ -537,7 +532,8 @@ public class TaoClient implements Client {
 						} else {
 							// timeout
 							entry.getValue().cancel(true);
-							TaoLogger.logInfo("Timed out during read waiting for proxy " + entry.getKey());
+							TaoLogger.logWarning("Timed out during read waiting for proxy " + entry.getKey()
+									+ " for opID " + opID + " and blockID " + blockID);
 							it.remove();
 
 							// Remove unit from quorum and mark unresponsive
@@ -626,7 +622,8 @@ public class TaoClient implements Client {
 						} else {
 							// timeout
 							entry.getValue().cancel(true);
-							TaoLogger.logInfo("Timed out during write waiting for proxy " + entry.getKey());
+							TaoLogger.logWarning("Timed out during write waiting for proxy " + entry.getKey()
+									+ " for opID " + opID + " and blockID " + blockID);
 
 							it.remove();
 
@@ -672,6 +669,7 @@ public class TaoClient implements Client {
 		// request ID to the left and add the client ID, thereby
 		// ensuring that no two clients use the same request ID
 		long requestID = (Long.highestOneBit(TaoConfigs.MAX_CLIENT_ID + 1) << 1) * mRequestID.getAndAdd(1) + mClientID;
+		TaoLogger.logInfo("opID " + opID + " has requestID " + requestID);
 
 		// Create client request
 		ClientRequest request = mMessageCreator.createClientRequest();
@@ -711,14 +709,19 @@ public class TaoClient implements Client {
 			ProxyResponse proxyResponse = mMessageCreator.createProxyResponse();
 			mResponseWaitMap.put(request.getRequestID(), proxyResponse);
 
-			sProfiler.clientRequestPreSend(request.getRequestID(),
-					request.getType() == MessageTypes.CLIENT_WRITE_REQUEST, unitID);
+			boolean isWriteRequest = request.getType() == MessageTypes.CLIENT_WRITE_REQUEST;
+
+			sProfiler.clientRequestPreSend(request.getRequestID(), isWriteRequest, unitID);
 
 			// Send request and wait until response
 			synchronized (proxyResponse) {
 				sendRequestToProxy(request, unitID);
 				proxyResponse.wait();
 			}
+
+			sProfiler.clientRequestPostRecv(proxyResponse.getClientRequestID(), isWriteRequest, unitID);
+			sProfiler.proxyProcessingTime(proxyResponse.getClientRequestID(), isWriteRequest, unitID,
+					proxyResponse.getProcessingTime());
 
 			// Return response
 			return proxyResponse;

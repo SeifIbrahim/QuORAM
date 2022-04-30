@@ -440,8 +440,6 @@ public class TaoProfiler implements Profiler {
 		long t2 = System.currentTimeMillis();
 		mReadPathSendToRecvTimes.putIfAbsent(address, new ConcurrentHashMap<>());
 
-		TaoLogger.logInfo("readPathPostRecv " + req.getRequestID());
-
 		Map<Integer, Long> readPathSendToRecvTimesForServer = mReadPathSendToRecvTimes.get(address);
 		long t1 = mReadPathPreSendTimes.get(address).remove(req.hashCode());
 

@@ -74,8 +74,6 @@ public class TaoSequencer implements Sequencer {
 
 	@Override
 	public void onReceiveRequest(ClientRequest req) {
-		mProcessor.readPath(req);
-
 		try {
 			// Create an empty block with null data
 			Block empty = mBlockCreator.createBlock();
@@ -86,6 +84,8 @@ public class TaoSequencer implements Sequencer {
 
 			// Add this request to the request queue
 			mRequestQueue.add(req);
+
+			TaoLogger.logDebug("Added requestID " + req.getRequestID() + " to sequencer");
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -122,13 +122,14 @@ public class TaoSequencer implements Sequencer {
 				// Wait until the reply for req comes back
 				byte[] check;
 				synchronized (mRequestMap) {
-//                    if (mRequestMap.get(req) == null) {
-//                        continue;
-//                    }
+					if (mRequestMap.get(req) == null) {
+						continue;
+					}
 					check = mRequestMap.get(req).getData();
 					while (check == null) {
 						mRequestMap.wait();
 						check = mRequestMap.get(req).getData();
+						TaoLogger.logDebug("Top of requestQueue id:" + req.getRequestID());
 					}
 				}
 
@@ -174,10 +175,9 @@ public class TaoSequencer implements Sequencer {
 
 					// Clear buffer
 					fullMessage = null;
-
-					// Remove request from request map
-					mRequestMap.remove(req);
 				}
+				// Remove request from request map
+				mRequestMap.remove(req);
 			} catch (Exception e) {
 				e.printStackTrace();
 			}
