@@ -453,11 +453,12 @@ public class TaoServer implements Server {
 								mReadPathExecutor.submit(() -> {
 									TaoLogger.logDebug("Serving a read request");
 									// Read the request path
+									long startTime = System.currentTimeMillis();
+
 									byte[] returnPathData = readPath(proxyReq.getPathID());
 
 									// long startTime = mReadStartTimes.remove(proxyReq.hashCode());
-									// long time = System.currentTimeMillis() - startTime;
-									long time = 0;
+									long time = System.currentTimeMillis() - startTime;
 
 									// Create a server response
 									ServerResponse readResponse = mMessageCreator.createServerResponse();
