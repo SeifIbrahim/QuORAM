@@ -106,7 +106,7 @@ public class TaoProxy implements Proxy {
 	public TaoProxy(MessageCreator messageCreator, PathCreator pathCreator, TaoSubtree subtree, int unitId) {
 		try {
 			// For trace purposes
-			TaoLogger.logLevel = TaoLogger.LOG_DEBUG;
+			TaoLogger.logLevel = TaoLogger.LOG_OFF;
 
 			// For profiling purposes
 			mProfiler = new TaoProfiler(unitId);

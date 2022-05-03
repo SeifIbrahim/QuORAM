@@ -113,6 +113,7 @@ public class TaoInterface {
 			 */
 
 			mSequencer.onReceiveRequest(clientReq);
+			// readPath needs to happen AFTER we forward to the sequencer
 			mProcessor.readPath(clientReq);
 		} else if (type == MessageTypes.CLIENT_WRITE_REQUEST) {
 			TaoLogger.logInfo("Got a write request with opID " + opID);

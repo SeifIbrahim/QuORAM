@@ -62,7 +62,7 @@ echo 'Proxies launched.'
 # launch client
 num_clients=10
 num_warmup=1
-loadtest_length=$((60*1000))
+loadtest_length=$((3*60*1000))
 rw_ratio=0.5
 zipf=0.9
 quorum_type="nearest"
