@@ -62,3 +62,5 @@ max_client_id = 90
 proxy_service_threads = 128
 
 access_daemon_delay = 5000
+
+client_timeout = 10000

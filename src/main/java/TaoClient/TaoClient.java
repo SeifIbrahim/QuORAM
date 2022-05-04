@@ -90,8 +90,6 @@ public class TaoClient implements Client {
 	// time interval for bucketting throughputs and response times
 	public static int SAMPLE_INTERVAL = 10 * 1000;
 
-	public static final int TIMEOUT_DELAY = 2000;
-
 	public static ArrayList<Double> sThroughputs = new ArrayList<>();
 
 	// throughput bucketed by time interval
@@ -493,7 +491,7 @@ public class TaoClient implements Client {
 				while (it.hasNext()) {
 					Map.Entry<Integer, Future<ProxyResponse>> entry = (Entry<Integer, Future<ProxyResponse>>) it.next();
 					if (entry.getValue().isDone()
-							|| System.currentTimeMillis() > timeStart.get(entry.getKey()) + TIMEOUT_DELAY) {
+							|| System.currentTimeMillis() > timeStart.get(entry.getKey()) + TaoConfigs.CLIENT_TIMEOUT) {
 						if (!randomQuorum) {
 							// record the read latency
 							mSiteLatenciesLock.writeLock().lock();
@@ -583,7 +581,7 @@ public class TaoClient implements Client {
 					Map.Entry<Integer, Future<ProxyResponse>> entry = (Map.Entry<Integer, Future<ProxyResponse>>) it
 							.next();
 					if (entry.getValue().isDone()
-							|| System.currentTimeMillis() > timeStart.get(entry.getKey()) + TIMEOUT_DELAY) {
+							|| System.currentTimeMillis() > timeStart.get(entry.getKey()) + TaoConfigs.CLIENT_TIMEOUT) {
 						if (!randomQuorum) {
 							// record the write latency
 							mSiteLatenciesLock.writeLock().lock();

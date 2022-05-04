@@ -91,6 +91,8 @@ public class TaoConfigs {
 
 	public static int ACCESS_DAEMON_DELAY;
 
+	public static int CLIENT_TIMEOUT;
+
     /**
      * @brief Initialize configurations that user can set
      */
@@ -159,6 +161,9 @@ public class TaoConfigs {
 
 				String access_daemon_delay = properties.getProperty("access_daemon_delay");
                 ACCESS_DAEMON_DELAY = Integer.parseInt(access_daemon_delay);
+
+				String client_timeout = properties.getProperty("client_timeout");
+                CLIENT_TIMEOUT = Integer.parseInt(client_timeout);
 
                 for (int i = 0; i < num_units; i++) {
                     String serverHost = properties.getProperty("server_hostname" + Integer.toString(i));
@@ -324,6 +329,6 @@ public class TaoConfigs {
             int levelSavedOnProxy = (int) (Math.log(numServers) / Math.log(2));
             return (totalHeight - levelSavedOnProxy);
         }
-        return totalHeight;
-    }
+		return totalHeight;
+	}
 }
