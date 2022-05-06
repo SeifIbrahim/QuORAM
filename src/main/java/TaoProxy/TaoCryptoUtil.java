@@ -29,7 +29,7 @@ public class TaoCryptoUtil implements CryptoUtil {
             keyGen.init(128);
             mSecretKey = keyGen.generateKey();
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -50,7 +50,7 @@ public class TaoCryptoUtil implements CryptoUtil {
             byte[] encryptedData = c.doFinal(data);
             return Bytes.concat(c.getIV(), encryptedData);
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
         return null;
     }
@@ -64,7 +64,7 @@ public class TaoCryptoUtil implements CryptoUtil {
             c.init(Cipher.DECRYPT_MODE, k, new IvParameterSpec(iv));
             return c.doFinal(Arrays.copyOfRange(encryptedData, TaoConfigs.IV_SIZE, encryptedData.length));
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
         return null;
     }
@@ -104,7 +104,7 @@ public class TaoCryptoUtil implements CryptoUtil {
             // Return encrypted path
             return Bytes.concat(idBytes, encryptedBuckets);
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
         return null;
     }
@@ -163,7 +163,7 @@ public class TaoCryptoUtil implements CryptoUtil {
 
             return p;
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
         return null;
     }

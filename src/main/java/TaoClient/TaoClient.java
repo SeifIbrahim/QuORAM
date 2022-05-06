@@ -158,7 +158,7 @@ public class TaoClient implements Client {
 			new Thread(serializeProcedure).start();
 			TaoLogger.logInfo("made client");
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -199,7 +199,7 @@ public class TaoClient implements Client {
 				channel.close();
 			}
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -215,7 +215,7 @@ public class TaoClient implements Client {
 			// Return read data
 			return response.getReturnData();
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		return null;
@@ -233,7 +233,7 @@ public class TaoClient implements Client {
 			// Return write status
 			return response.getWriteStatus();
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 		return false;
 	}
@@ -332,7 +332,7 @@ public class TaoClient implements Client {
 
 						@Override
 						public void failed(Throwable exc, Void attachment) {
-							exc.printStackTrace();
+							TaoLogger.logForce("Failed to read a message from the proxy");
 						}
 					});
 				}
@@ -340,7 +340,7 @@ public class TaoClient implements Client {
 
 			@Override
 			public void failed(Throwable exc, Void attachment) {
-				exc.printStackTrace();
+				TaoLogger.logForce("Failed to read a message from the proxy");
 			}
 		});
 	}
@@ -376,7 +376,7 @@ public class TaoClient implements Client {
 				try {
 					Thread.sleep(soonestBackoffTime - time);
 				} catch (InterruptedException e) {
-					e.printStackTrace();
+					TaoLogger.logForce(e.getMessage());
 				}
 			}
 		}
@@ -525,7 +525,7 @@ public class TaoClient implements Client {
 								markResponsive(entry.getKey());
 							} catch (Exception e) {
 								TaoLogger.logForce(e.toString());
-								e.printStackTrace();
+								TaoLogger.logForce(e.getMessage());
 							}
 						} else {
 							// timeout
@@ -615,7 +615,7 @@ public class TaoClient implements Client {
 								}
 							} catch (Exception e) {
 								TaoLogger.logInfo(e.toString());
-								e.printStackTrace();
+								TaoLogger.logForce(e.getMessage());
 							}
 						} else {
 							// timeout
@@ -756,7 +756,7 @@ public class TaoClient implements Client {
 				}
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logWarning(e.getMessage());
 		}
 	}
 
@@ -808,7 +808,7 @@ public class TaoClient implements Client {
 			clientSocket.close();
 			output.close();
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce("Failed to send message to proxy " + proxyAddress.toString());
 		}
 	}
 
@@ -853,7 +853,7 @@ public class TaoClient implements Client {
 			clientSocket.close();
 			output.close();
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -881,7 +881,7 @@ public class TaoClient implements Client {
 			if (!writeStatus) {
 				TaoLogger.logForce("Write failed for block " + targetBlock);
 				success = false;
-				System.exit(1);
+				// System.exit(1);
 			}
 		}
 		synchronized (sResponseTimes) {
@@ -1128,7 +1128,7 @@ public class TaoClient implements Client {
 				System.exit(0);
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		return;

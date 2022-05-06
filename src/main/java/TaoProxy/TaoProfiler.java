@@ -210,7 +210,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "writeBackStats" + unitID + ".txt";
@@ -223,7 +223,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "readPathSendToRecvStats" + unitID + ".txt";
@@ -236,7 +236,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "writeBackSendToRecvStats" + unitID + ".txt";
@@ -249,7 +249,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "readPathServerProcessingStats" + unitID + ".txt";
@@ -262,7 +262,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "writeBackServerProcessingStats" + unitID + ".txt";
@@ -275,7 +275,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "readPathNetStats" + unitID + ".txt";
@@ -288,7 +288,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "writeBackNetStats" + unitID + ".txt";
@@ -301,7 +301,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		filename = "addPathStats" + unitID + ".txt";
@@ -314,7 +314,7 @@ public class TaoProfiler implements Profiler {
 			writer.println(report);
 			writer.close();
 		} catch (IOException e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 

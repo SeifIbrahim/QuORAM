@@ -80,7 +80,7 @@ public class RSTaoProxy extends TaoProxy {
             mSequencer = new TaoSequencer(mMessageCreator, mPathCreator);
             mProcessor = new RSTaoProcessor(this, mSequencer, mThreadGroup, mMessageCreator, mPathCreator, mCryptoUtil, mSubtree, mPositionMap, mRelativeLeafMapper, mProfiler);
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -167,7 +167,7 @@ public class RSTaoProxy extends TaoProxy {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -188,7 +188,7 @@ public class RSTaoProxy extends TaoProxy {
             TaoLogger.logForce("Finished init, running proxy");
             proxy.run();
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 

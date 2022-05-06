@@ -111,7 +111,7 @@ public class RSTaoProcessor extends TaoProcessor {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -169,7 +169,7 @@ public class RSTaoProcessor extends TaoProcessor {
 
 
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -445,7 +445,7 @@ public class RSTaoProcessor extends TaoProcessor {
                                                     try {
                                                         newChannelToServer.close();
                                                     } catch (IOException e) {
-                                                        e.printStackTrace();
+                                                        TaoLogger.logForce(e.getMessage());
                                                     }
 
                                                     // Flip the byte buffer for reading
@@ -504,7 +504,7 @@ public class RSTaoProcessor extends TaoProcessor {
 
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -740,7 +740,7 @@ public class RSTaoProcessor extends TaoProcessor {
                                             try {
                                                 channel.close();
                                             } catch (IOException e) {
-                                                e.printStackTrace();
+                                                TaoLogger.logForce(e.getMessage());
                                             }
 
                                             // Flip byte buffer for reading
@@ -817,13 +817,13 @@ public class RSTaoProcessor extends TaoProcessor {
                             }
                         });
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        TaoLogger.logForce(e.getMessage());
                     }
                 };
                 new Thread(writebackRunnable).start();
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 
@@ -878,7 +878,7 @@ public class RSTaoProcessor extends TaoProcessor {
             TaoLogger.logForce("Finished init, running proxy");
             proxy.run();
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 

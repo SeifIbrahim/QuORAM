@@ -230,7 +230,7 @@ public class TaoProcessor implements Processor {
 			mProcessorThreadPool = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
 			;
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -546,7 +546,7 @@ public class TaoProcessor implements Processor {
 																try {
 																	newChannelToServer.close();
 																} catch (IOException e) {
-																	e.printStackTrace();
+																	TaoLogger.logForce(e.getMessage());
 																}
 
 																// Flip the byte buffer for reading
@@ -608,7 +608,7 @@ public class TaoProcessor implements Processor {
 				});
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -655,7 +655,7 @@ public class TaoProcessor implements Processor {
 				}
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -1320,7 +1320,7 @@ public class TaoProcessor implements Processor {
 											try {
 												channel.close();
 											} catch (IOException e) {
-												e.printStackTrace();
+												TaoLogger.logForce(e.getMessage());
 											}
 
 											// Flip byte buffer for reading
@@ -1399,13 +1399,13 @@ public class TaoProcessor implements Processor {
 							}
 						});
 					} catch (Exception e) {
-						e.printStackTrace();
+						TaoLogger.logForce(e.getMessage());
 					}
 				};
 				mProcessorThreadPool.execute(writebackRunnable);
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -1417,7 +1417,7 @@ public class TaoProcessor implements Processor {
 				try {
 					entry.getValue().close();
 				} catch (IOException e) {
-					e.printStackTrace();
+					TaoLogger.logForce(e.getMessage());
 				}
 			}
 			mProxyToServerChannelMap.remove(channel);

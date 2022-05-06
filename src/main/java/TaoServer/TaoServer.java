@@ -117,7 +117,7 @@ public class TaoServer implements Server {
 			// Assign message creator
 			mMessageCreator = messageCreator;
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -217,7 +217,7 @@ public class TaoServer implements Server {
 			returnData = Bytes.concat(Longs.toByteArray(pathID), returnData);
 			return returnData;
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		} finally {
 			// Unlock final bucket
 			mBucketLocks[bucketLockIndex].unlock();
@@ -336,7 +336,7 @@ public class TaoServer implements Server {
 			// Return true, signaling that the write was successful
 			return true;
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		} finally {
 			// Unlock final bucket
 			mBucketLocks[bucketLockIndex].unlock();
@@ -388,7 +388,7 @@ public class TaoServer implements Server {
 				}
 			});
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 
@@ -643,7 +643,7 @@ public class TaoServer implements Server {
 										// Clear buffer
 										returnMessageBuffer.clear();
 									} catch (Exception e) {
-										e.printStackTrace();
+										TaoLogger.logForce(e.getMessage());
 										try {
 											channel.close();
 										} catch (IOException e1) {
@@ -696,7 +696,7 @@ public class TaoServer implements Server {
 			Server server = new TaoServer(new TaoMessageCreator(), unitId);
 			server.run();
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 	}
 }

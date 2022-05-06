@@ -183,7 +183,7 @@ public class TaoConfigs {
                 initConfiguration(min_server_size * 1024 * 1024);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 

@@ -36,7 +36,7 @@ public class TaoMessageCreatorTest {
         try {
             keyGen = KeyGenerator.getInstance("AES");
         } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
         keyGen.init(128);
         CryptoUtil cryptoUtil = new TaoCryptoUtil(keyGen.generateKey());

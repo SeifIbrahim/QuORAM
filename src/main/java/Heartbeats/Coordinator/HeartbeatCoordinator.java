@@ -8,6 +8,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 
 import Heartbeats.Messages.*;
+import TaoProxy.TaoLogger;
 
 /**
  * The Heartbeat Coordinator listens for connections
@@ -203,7 +204,7 @@ public class HeartbeatCoordinator implements Coordinator {
                 }
             }
         } catch (IOException e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 

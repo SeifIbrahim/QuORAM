@@ -37,7 +37,7 @@ public class RSTaoServer extends  TaoServer {
             RSTaoServer server = new RSTaoServer(new TaoMessageCreator());
             server.run();
         } catch (Exception e) {
-            e.printStackTrace();
+            TaoLogger.logForce(e.getMessage());
         }
     }
 

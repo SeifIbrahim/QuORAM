@@ -286,7 +286,7 @@ public class InsecureTaoClient extends TaoClient {
 				System.exit(0);
 			}
 		} catch (Exception e) {
-			e.printStackTrace();
+			TaoLogger.logForce(e.getMessage());
 		}
 
 		return;
