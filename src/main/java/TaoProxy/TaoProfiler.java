@@ -10,26 +10,26 @@ import java.net.InetSocketAddress;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.commons.math3.stat.descriptive.DescriptiveStatistics;
+import org.apache.commons.math3.stat.descriptive.SummaryStatistics;
 
 public class TaoProfiler implements Profiler {
 
 	protected String mOutputDirectory;
 
 	// Proxy Profiling
-	protected DescriptiveStatistics mReadPathStatistics;
-	protected DescriptiveStatistics mWriteBackStatistics;
+	protected SummaryStatistics mReadPathStatistics;
+	protected SummaryStatistics mWriteBackStatistics;
 
-	protected DescriptiveStatistics mReadPathSendToRecvStatistics;
-	protected DescriptiveStatistics mWriteBackSendToRecvStatistics;
+	protected SummaryStatistics mReadPathSendToRecvStatistics;
+	protected SummaryStatistics mWriteBackSendToRecvStatistics;
 
-	protected DescriptiveStatistics mReadPathProcessingStatistics;
-	protected DescriptiveStatistics mWriteBackProcessingStatistics;
+	protected SummaryStatistics mReadPathProcessingStatistics;
+	protected SummaryStatistics mWriteBackProcessingStatistics;
 
-	protected DescriptiveStatistics mReadPathNetStatistics;
-	protected DescriptiveStatistics mWriteBackNetStatistics;
+	protected SummaryStatistics mReadPathNetStatistics;
+	protected SummaryStatistics mWriteBackNetStatistics;
 
-	protected DescriptiveStatistics mAddPathStatistics;
+	protected SummaryStatistics mAddPathStatistics;
 
 	protected Map<Long, Long> mWriteBackStartTimes;
 
@@ -43,24 +43,24 @@ public class TaoProfiler implements Profiler {
 	protected Map<Integer, Long> mProxyMovingWriteStartTimes;
 
 	protected Map<Integer, Long> mProxyReadStartTimes;
-	protected DescriptiveStatistics mProxyReadStatistics;
+	protected SummaryStatistics mProxyReadStatistics;
 
 	protected Map<Integer, Long> mProxyWriteStartTimes;
-	protected DescriptiveStatistics mProxyWriteStatistics;
+	protected SummaryStatistics mProxyWriteStatistics;
 
-	protected DescriptiveStatistics mInterfaceReadStatistics;
-	protected DescriptiveStatistics mInterfaceWriteStatistics;
+	protected SummaryStatistics mInterfaceReadStatistics;
+	protected SummaryStatistics mInterfaceWriteStatistics;
 
-	protected DescriptiveStatistics mAnswerRequestStatistics;
+	protected SummaryStatistics mAnswerRequestStatistics;
 
-	protected DescriptiveStatistics mSequencerStatistics;
+	protected SummaryStatistics mSequencerStatistics;
 
 	// Client Profiling
 	protected Map<OperationID, Long> mReadQuorumPreSendTimes;
-	protected DescriptiveStatistics mReadQuorumSendToRecvStatistics;
+	protected SummaryStatistics mReadQuorumSendToRecvStatistics;
 
 	protected Map<OperationID, Long> mWriteQuorumPreSendTimes;
-	protected DescriptiveStatistics mWriteQuorumSendToRecvStatistics;
+	protected SummaryStatistics mWriteQuorumSendToRecvStatistics;
 
 	protected Map<Integer, Map<Long, Long>> mClientReadStartTimes;
 	protected Map<Integer, Map<Long, Long>> mClientWriteStartTimes;
@@ -68,14 +68,14 @@ public class TaoProfiler implements Profiler {
 	protected Map<Integer, Map<Long, Long>> mClientReadSendToRecvTimes;
 	protected Map<Integer, Map<Long, Long>> mClientWriteSendToRecvTimes;
 
-	protected Map<Integer, DescriptiveStatistics> mClientReadSendToRecvStatistics;
-	protected Map<Integer, DescriptiveStatistics> mClientWriteSendToRecvStatistics;
+	protected Map<Integer, SummaryStatistics> mClientReadSendToRecvStatistics;
+	protected Map<Integer, SummaryStatistics> mClientWriteSendToRecvStatistics;
 
-	protected Map<Integer, DescriptiveStatistics> mProxyReadProcessingStatistics;
-	protected Map<Integer, DescriptiveStatistics> mProxyWriteProcessingStatistics;
+	protected Map<Integer, SummaryStatistics> mProxyReadProcessingStatistics;
+	protected Map<Integer, SummaryStatistics> mProxyWriteProcessingStatistics;
 
-	protected Map<Integer, DescriptiveStatistics> mProxyReadNetStatistics;
-	protected Map<Integer, DescriptiveStatistics> mProxyWriteNetStatistics;
+	protected Map<Integer, SummaryStatistics> mProxyReadNetStatistics;
+	protected Map<Integer, SummaryStatistics> mProxyWriteNetStatistics;
 
 	protected int unitID;
 
@@ -85,19 +85,19 @@ public class TaoProfiler implements Profiler {
 		mOutputDirectory = "profile";
 
 		// Proxy Profiling
-		mReadPathStatistics = new DescriptiveStatistics();
-		mWriteBackStatistics = new DescriptiveStatistics();
+		mReadPathStatistics = new SummaryStatistics();
+		mWriteBackStatistics = new SummaryStatistics();
 
-		mReadPathSendToRecvStatistics = new DescriptiveStatistics();
-		mWriteBackSendToRecvStatistics = new DescriptiveStatistics();
+		mReadPathSendToRecvStatistics = new SummaryStatistics();
+		mWriteBackSendToRecvStatistics = new SummaryStatistics();
 
-		mReadPathProcessingStatistics = new DescriptiveStatistics();
-		mWriteBackProcessingStatistics = new DescriptiveStatistics();
+		mReadPathProcessingStatistics = new SummaryStatistics();
+		mWriteBackProcessingStatistics = new SummaryStatistics();
 
-		mReadPathNetStatistics = new DescriptiveStatistics();
-		mWriteBackNetStatistics = new DescriptiveStatistics();
+		mReadPathNetStatistics = new SummaryStatistics();
+		mWriteBackNetStatistics = new SummaryStatistics();
 
-		mAddPathStatistics = new DescriptiveStatistics();
+		mAddPathStatistics = new SummaryStatistics();
 
 		mWriteBackStartTimes = new ConcurrentHashMap<>();
 
@@ -111,24 +111,24 @@ public class TaoProfiler implements Profiler {
 		mProxyMovingWriteStartTimes = new ConcurrentHashMap<>();
 
 		mProxyReadStartTimes = new ConcurrentHashMap<>();
-		mProxyReadStatistics = new DescriptiveStatistics();
+		mProxyReadStatistics = new SummaryStatistics();
 
 		mProxyWriteStartTimes = new ConcurrentHashMap<>();
-		mProxyWriteStatistics = new DescriptiveStatistics();
+		mProxyWriteStatistics = new SummaryStatistics();
 
-		mInterfaceReadStatistics = new DescriptiveStatistics();
-		mInterfaceWriteStatistics = new DescriptiveStatistics();
+		mInterfaceReadStatistics = new SummaryStatistics();
+		mInterfaceWriteStatistics = new SummaryStatistics();
 
-		mAnswerRequestStatistics = new DescriptiveStatistics();
+		mAnswerRequestStatistics = new SummaryStatistics();
 
-		mSequencerStatistics = new DescriptiveStatistics();
+		mSequencerStatistics = new SummaryStatistics();
 
 		// Client Profiling
 		mReadQuorumPreSendTimes = new ConcurrentHashMap<>();
-		mReadQuorumSendToRecvStatistics = new DescriptiveStatistics();
+		mReadQuorumSendToRecvStatistics = new SummaryStatistics();
 
 		mWriteQuorumPreSendTimes = new ConcurrentHashMap<>();
-		mWriteQuorumSendToRecvStatistics = new DescriptiveStatistics();
+		mWriteQuorumSendToRecvStatistics = new SummaryStatistics();
 
 		mClientReadStartTimes = new ConcurrentHashMap<>();
 		mClientWriteStartTimes = new ConcurrentHashMap<>();
@@ -146,15 +146,15 @@ public class TaoProfiler implements Profiler {
 		mProxyWriteNetStatistics = new ConcurrentHashMap<>();
 	}
 
-	private String oneLineStats(DescriptiveStatistics descriptiveStatistics) {
-		return String.format("%,.2f/%,.2f/%,.2f/%,.2f", descriptiveStatistics.getMean(), descriptiveStatistics.getMin(),
-				descriptiveStatistics.getMax(), descriptiveStatistics.getStandardDeviation());
+	private String oneLineStats(SummaryStatistics statistics) {
+		return String.format("%,.2f/%,.2f/%,.2f/%,.2f", statistics.getMean(), statistics.getMin(),
+				statistics.getMax(), statistics.getStandardDeviation());
 	}
 
 	public String getClientStatistics() {
 		StringBuilder sb = new StringBuilder();
 		sb.append(String.format("%n%-20s%s%n", "Read Quorum: ", oneLineStats(mReadQuorumSendToRecvStatistics)));
-		for (Entry<Integer, DescriptiveStatistics> e : mClientReadSendToRecvStatistics.entrySet()) {
+		for (Entry<Integer, SummaryStatistics> e : mClientReadSendToRecvStatistics.entrySet()) {
 			sb.append(String.format("\t%-20s%s%n", "Proxy " + e.getKey() + ": ", oneLineStats(e.getValue())));
 			sb.append(String.format("\t\t%-20s%s%n", "Processing Time: ",
 					oneLineStats(mProxyReadProcessingStatistics.get(e.getKey()))));
@@ -163,7 +163,7 @@ public class TaoProfiler implements Profiler {
 		}
 
 		sb.append(String.format("%n%-20s%s%n", "Write Quorum: ", oneLineStats(mWriteQuorumSendToRecvStatistics)));
-		for (Entry<Integer, DescriptiveStatistics> e : mClientWriteSendToRecvStatistics.entrySet()) {
+		for (Entry<Integer, SummaryStatistics> e : mClientWriteSendToRecvStatistics.entrySet()) {
 			sb.append(String.format("\t%-20s%s%n", "Proxy " + e.getKey() + ": ", oneLineStats(e.getValue())));
 			sb.append(String.format("\t\t%-20s%s%n", "Processing Time: ",
 					oneLineStats(mProxyWriteProcessingStatistics.get(e.getKey()))));
@@ -528,7 +528,7 @@ public class TaoProfiler implements Profiler {
 			long t1 = mClientWriteStartTimes.get(unitID).remove(clientRequestID);
 			sendToRecvTimesForProxy.put(clientRequestID, t2 - t1);
 
-			mClientWriteSendToRecvStatistics.putIfAbsent(unitID, new DescriptiveStatistics());
+			mClientWriteSendToRecvStatistics.putIfAbsent(unitID, new SummaryStatistics());
 			synchronized (mClientWriteSendToRecvStatistics.get(unitID)) {
 				mClientWriteSendToRecvStatistics.get(unitID).addValue(t2 - t1);
 			}
@@ -539,7 +539,7 @@ public class TaoProfiler implements Profiler {
 			long t1 = mClientReadStartTimes.get(unitID).remove(clientRequestID);
 			sendToRecvTimesForProxy.put(clientRequestID, t2 - t1);
 
-			mClientReadSendToRecvStatistics.putIfAbsent(unitID, new DescriptiveStatistics());
+			mClientReadSendToRecvStatistics.putIfAbsent(unitID, new SummaryStatistics());
 			synchronized (mClientReadSendToRecvStatistics.get(unitID)) {
 				mClientReadSendToRecvStatistics.get(unitID).addValue(t2 - t1);
 			}
@@ -551,24 +551,24 @@ public class TaoProfiler implements Profiler {
 		if (write) {
 			long netTimeApprox = mClientWriteSendToRecvTimes.get(unitID).remove(clientRequestID) - processingTime;
 
-			mProxyWriteProcessingStatistics.putIfAbsent(unitID, new DescriptiveStatistics());
+			mProxyWriteProcessingStatistics.putIfAbsent(unitID, new SummaryStatistics());
 			synchronized (mProxyWriteProcessingStatistics.get(unitID)) {
 				mProxyWriteProcessingStatistics.get(unitID).addValue(processingTime);
 			}
 
-			mProxyWriteNetStatistics.putIfAbsent(unitID, new DescriptiveStatistics());
+			mProxyWriteNetStatistics.putIfAbsent(unitID, new SummaryStatistics());
 			synchronized (mProxyWriteNetStatistics.get(unitID)) {
 				mProxyWriteNetStatistics.get(unitID).addValue(netTimeApprox);
 			}
 		} else {
 			long netTimeApprox = mClientReadSendToRecvTimes.get(unitID).remove(clientRequestID) - processingTime;
 
-			mProxyReadProcessingStatistics.putIfAbsent(unitID, new DescriptiveStatistics());
+			mProxyReadProcessingStatistics.putIfAbsent(unitID, new SummaryStatistics());
 			synchronized (mProxyReadProcessingStatistics.get(unitID)) {
 				mProxyReadProcessingStatistics.get(unitID).addValue(processingTime);
 			}
 
-			mProxyReadNetStatistics.putIfAbsent(unitID, new DescriptiveStatistics());
+			mProxyReadNetStatistics.putIfAbsent(unitID, new SummaryStatistics());
 			synchronized (mProxyReadNetStatistics.get(unitID)) {
 				mProxyReadNetStatistics.get(unitID).addValue(netTimeApprox);
 			}
