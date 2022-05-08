@@ -16,6 +16,7 @@ import static org.junit.Assert.assertEquals;
 public class BlockPathComparatorTest {
     @Test
     public void testHeap() {
+        TaoConfigs.initConfiguration();
         long targetPath = 0;
         TaoPositionMap map = new TaoPositionMap();
         Integer[] paths = new Integer[] {0, 8, 2, 1, 4};
