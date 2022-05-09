@@ -68,7 +68,7 @@ public class TaoSequencer implements Sequencer {
 			Runnable serializeProcedure = this::serializationProcedure;
 			new Thread(serializeProcedure).start();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -87,7 +87,7 @@ public class TaoSequencer implements Sequencer {
 
 			TaoLogger.logDebug("Added requestID " + req.getRequestID() + " to sequencer");
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -107,7 +107,7 @@ public class TaoSequencer implements Sequencer {
 
 			TaoLogger.logDebug("Sequencer finished onReceiveResponse for " + req.getRequestID());
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -179,7 +179,7 @@ public class TaoSequencer implements Sequencer {
 				// Remove request from request map
 				mRequestMap.remove(req);
 			} catch (Exception e) {
-				TaoLogger.logForce(e.getMessage());
+				e.printStackTrace(System.out);
 			}
 		}
 	}

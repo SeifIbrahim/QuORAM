@@ -60,7 +60,7 @@ public class InsecureTaoServer extends TaoServer {
 				try {
 					channel.close();
 				} catch (IOException e1) {
-					e1.printStackTrace();
+					e1.printStackTrace(System.out);
 				}
 				return;
 			}
@@ -198,7 +198,7 @@ public class InsecureTaoServer extends TaoServer {
 				TaoLogger.logForce("Unknown MessageType: " + messageType);
 			}
 		} catch (InterruptedException | ExecutionException e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -250,7 +250,7 @@ public class InsecureTaoServer extends TaoServer {
 			}
 			// mFilePointersSemaphore.release();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -293,7 +293,7 @@ public class InsecureTaoServer extends TaoServer {
 			bucket.initFromSerialized(bucketData);
 			return bucket.getBlocks()[(int) (blockID % TaoConfigs.BLOCKS_IN_BUCKET)];
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 		return null;
 	}
@@ -309,7 +309,7 @@ public class InsecureTaoServer extends TaoServer {
 			}
 			mFilePointers.push(diskFile);
 		} catch (IOException e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -330,7 +330,7 @@ public class InsecureTaoServer extends TaoServer {
 			((InsecureTaoServer) server).initializeStorage();
 			server.run();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 }

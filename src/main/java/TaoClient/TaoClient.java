@@ -158,7 +158,7 @@ public class TaoClient implements Client {
 			new Thread(serializeProcedure).start();
 			TaoLogger.logInfo("made client");
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -199,7 +199,7 @@ public class TaoClient implements Client {
 				channel.close();
 			}
 		} catch (IOException e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -215,7 +215,7 @@ public class TaoClient implements Client {
 			// Return read data
 			return response.getReturnData();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 
 		return null;
@@ -233,7 +233,7 @@ public class TaoClient implements Client {
 			// Return write status
 			return response.getWriteStatus();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 		return false;
 	}
@@ -376,7 +376,7 @@ public class TaoClient implements Client {
 				try {
 					Thread.sleep(soonestBackoffTime - time);
 				} catch (InterruptedException e) {
-					TaoLogger.logForce(e.getMessage());
+					e.printStackTrace(System.out);
 				}
 			}
 		}
@@ -525,7 +525,7 @@ public class TaoClient implements Client {
 								markResponsive(entry.getKey());
 							} catch (Exception e) {
 								TaoLogger.logForce(e.toString());
-								TaoLogger.logForce(e.getMessage());
+								e.printStackTrace(System.out);
 							}
 						} else {
 							// timeout
@@ -615,7 +615,7 @@ public class TaoClient implements Client {
 								}
 							} catch (Exception e) {
 								TaoLogger.logInfo(e.toString());
-								TaoLogger.logForce(e.getMessage());
+								e.printStackTrace(System.out);
 							}
 						} else {
 							// timeout
@@ -853,7 +853,7 @@ public class TaoClient implements Client {
 			clientSocket.close();
 			output.close();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -1024,7 +1024,7 @@ public class TaoClient implements Client {
 		// TaoLogger.logForce("TPS: "+(requestsPerSecond));
 		TaoLogger.logForce("Average response time was " + average + " ms");
 		TaoLogger.logForce("Median response time was " + sResponseTimes.get(sResponseTimes.size() / 2));
-		TaoLogger.logForce("Thoughput: " + averageThroughput);
+		TaoLogger.logForce("Throughput: " + averageThroughput);
 	}
 
 	public static void main(String[] args) {
@@ -1128,7 +1128,7 @@ public class TaoClient implements Client {
 				System.exit(0);
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 
 		return;

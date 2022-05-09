@@ -204,7 +204,7 @@ public class HeartbeatCoordinator implements Coordinator {
                 }
             }
         } catch (IOException e) {
-            TaoLogger.logForce(e.getMessage());
+            e.printStackTrace(System.out);
         }
     }
 

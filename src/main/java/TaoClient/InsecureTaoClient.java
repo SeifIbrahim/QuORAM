@@ -192,7 +192,7 @@ public class InsecureTaoClient extends TaoClient {
 		// TaoLogger.logForce("TPS: "+(requestsPerSecond));
 		TaoLogger.logForce("Average response time was " + average + " ms");
 		TaoLogger.logForce("Median response time was " + sResponseTimes.get(sResponseTimes.size() / 2));
-		TaoLogger.logForce("Thoughput: " + averageThroughput);
+		TaoLogger.logForce("Throughput: " + averageThroughput);
 	}
 
 	public static void main(String[] args) {
@@ -286,7 +286,7 @@ public class InsecureTaoClient extends TaoClient {
 				System.exit(0);
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 
 		return;

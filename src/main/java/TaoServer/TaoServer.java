@@ -117,7 +117,7 @@ public class TaoServer implements Server {
 			// Assign message creator
 			mMessageCreator = messageCreator;
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -217,7 +217,7 @@ public class TaoServer implements Server {
 			returnData = Bytes.concat(Longs.toByteArray(pathID), returnData);
 			return returnData;
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		} finally {
 			// Unlock final bucket
 			mBucketLocks[bucketLockIndex].unlock();
@@ -336,7 +336,7 @@ public class TaoServer implements Server {
 			// Return true, signaling that the write was successful
 			return true;
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		} finally {
 			// Unlock final bucket
 			mBucketLocks[bucketLockIndex].unlock();
@@ -380,7 +380,7 @@ public class TaoServer implements Server {
 				@Override
 				public void failed(Throwable exc, Void att) {
 					TaoLogger.logForce("Failed to accept connections");
-					exc.printStackTrace();
+					exc.printStackTrace(System.out);
 					try {
 						channel.close();
 					} catch (IOException e) {
@@ -388,7 +388,7 @@ public class TaoServer implements Server {
 				}
 			});
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -643,11 +643,11 @@ public class TaoServer implements Server {
 										// Clear buffer
 										returnMessageBuffer.clear();
 									} catch (Exception e) {
-										TaoLogger.logForce(e.getMessage());
+										e.printStackTrace(System.out);
 										try {
 											channel.close();
 										} catch (IOException e1) {
-											e1.printStackTrace();
+											e1.printStackTrace(System.out);
 										}
 									} finally {
 										// start processing the next message
@@ -696,7 +696,7 @@ public class TaoServer implements Server {
 			Server server = new TaoServer(new TaoMessageCreator(), unitId);
 			server.run();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 }

@@ -164,7 +164,7 @@ public class TaoProxy implements Proxy {
 			requestQueue = new LinkedBlockingDeque<>();
 			requestExecutor = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -249,7 +249,7 @@ public class TaoProxy implements Proxy {
 			TaoLogger.logForce("Initialization time: " + (System.currentTimeMillis() - start) + " ms");
 
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -300,16 +300,16 @@ public class TaoProxy implements Proxy {
 				@Override
 				public void failed(Throwable exc, Void att) {
 					TaoLogger.logForce("Failed to accept connections");
-					exc.printStackTrace();
+					exc.printStackTrace(System.out);
 					try {
 						channel.close();
 					} catch (IOException e) {
-						TaoLogger.logForce(e.getMessage());
+						e.printStackTrace(System.out);
 					}
 				}
 			});
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -321,7 +321,7 @@ public class TaoProxy implements Proxy {
 				requestExecutor.submit(() -> mInterface.handleRequest(req));
 			}
 		} catch (InterruptedException e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -376,11 +376,11 @@ public class TaoProxy implements Proxy {
 			return proxyResponse;
 		} catch (Exception e) {
 			try {
-				TaoLogger.logForce(e.getMessage());
+				e.printStackTrace(System.out);
 				channel.close();
 				return null;
 			} catch (IOException e1) {
-				TaoLogger.logForce(e.getMessage());
+				e.printStackTrace(System.out);
 				return null;
 			}
 		}
@@ -405,7 +405,7 @@ public class TaoProxy implements Proxy {
 				}
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -468,7 +468,7 @@ public class TaoProxy implements Proxy {
 				Thread.sleep(TaoConfigs.ACCESS_DAEMON_DELAY);
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -509,7 +509,7 @@ public class TaoProxy implements Proxy {
 							mProcessor.disconnectClient(channel);
 							channel.close();
 						} catch (IOException e1) {
-							e1.printStackTrace();
+							e1.printStackTrace(System.out);
 						}
 						return;
 					}
@@ -565,7 +565,7 @@ public class TaoProxy implements Proxy {
 								try {
 									requestQueue.put(clientReq);
 								} catch (InterruptedException e) {
-									TaoLogger.logForce(e.getMessage());
+									e.printStackTrace(System.out);
 								}
 
 								// Handle request
@@ -597,12 +597,12 @@ public class TaoProxy implements Proxy {
 
 				@Override
 				public void failed(Throwable exc, Void attachment) {
-					exc.printStackTrace();
+					exc.printStackTrace(System.out);
 					return;
 				}
 			});
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 			return;
 		}
 	}
@@ -633,7 +633,7 @@ public class TaoProxy implements Proxy {
 			// launch the path access daemon
 			// new Thread(() -> proxy.accessDaemon()).start();
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 }

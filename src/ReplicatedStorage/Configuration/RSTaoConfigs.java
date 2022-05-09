@@ -78,7 +78,7 @@ public class RSTaoConfigs {
             }
 
         } catch (Exception e) {
-            TaoLogger.logForce(e.getMessage());
+            e.printStackTrace(System.out);
         }
     }
 

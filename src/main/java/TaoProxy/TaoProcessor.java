@@ -1,26 +1,44 @@
 package TaoProxy;
 
-import Configuration.TaoConfigs;
-import Configuration.Utility;
-import Configuration.Unit;
-import Messages.*;
-import com.google.common.collect.ConcurrentHashMultiset;
-import com.google.common.collect.Lists;
-import com.google.common.collect.Multiset;
-import com.google.common.collect.Sets;
-import com.google.common.primitives.Bytes;
-
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.channels.AsynchronousChannelGroup;
 import java.nio.channels.AsynchronousSocketChannel;
 import java.nio.channels.CompletionHandler;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.PriorityQueue;
+import java.util.Queue;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.ReentrantLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import com.google.common.collect.ConcurrentHashMultiset;
+import com.google.common.collect.Lists;
+import com.google.common.collect.Multiset;
+import com.google.common.collect.Sets;
+import com.google.common.primitives.Bytes;
+
+import Configuration.TaoConfigs;
+import Configuration.Unit;
+import Configuration.Utility;
+import Messages.ClientRequest;
+import Messages.MessageCreator;
+import Messages.MessageTypes;
+import Messages.ProxyRequest;
+import Messages.ServerResponse;
 
 public class TaoProcessor implements Processor {
 	// Stash to hold blocks
@@ -230,7 +248,7 @@ public class TaoProcessor implements Processor {
 			mProcessorThreadPool = Executors.newFixedThreadPool(TaoConfigs.PROXY_SERVICE_THREADS);
 			;
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -461,21 +479,21 @@ public class TaoProcessor implements Processor {
 
 									@Override
 									public void failed(Throwable exc, Void attachment) {
-										exc.printStackTrace();
+										exc.printStackTrace(System.out);
 									}
 								});
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
-								exc.printStackTrace();
+								exc.printStackTrace(System.out);
 							}
 						});
 					}
 
 					@Override
 					public void failed(Throwable exc, Void attachment) {
-						exc.printStackTrace();
+						exc.printStackTrace(System.out);
 					}
 				});
 			} else {
@@ -546,7 +564,7 @@ public class TaoProcessor implements Processor {
 																try {
 																	newChannelToServer.close();
 																} catch (IOException e) {
-																	TaoLogger.logForce(e.getMessage());
+																	e.printStackTrace(System.out);
 																}
 
 																// Flip the byte buffer for reading
@@ -582,33 +600,33 @@ public class TaoProcessor implements Processor {
 
 															@Override
 															public void failed(Throwable exc, Void attachment) {
-																exc.printStackTrace();
+																exc.printStackTrace(System.out);
 															}
 														});
 											}
 
 											@Override
 											public void failed(Throwable exc, Void attachment) {
-												exc.printStackTrace();
+												exc.printStackTrace(System.out);
 											}
 										});
 							}
 
 							@Override
 							public void failed(Throwable exc, Void attachment) {
-								exc.printStackTrace();
+								exc.printStackTrace(System.out);
 							}
 						});
 					}
 
 					@Override
 					public void failed(Throwable exc, Object attachment) {
-						exc.printStackTrace();
+						exc.printStackTrace(System.out);
 					}
 				});
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -655,7 +673,7 @@ public class TaoProcessor implements Processor {
 				}
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -1320,7 +1338,7 @@ public class TaoProcessor implements Processor {
 											try {
 												channel.close();
 											} catch (IOException e) {
-												TaoLogger.logForce(e.getMessage());
+												e.printStackTrace(System.out);
 											}
 
 											// Flip byte buffer for reading
@@ -1384,7 +1402,7 @@ public class TaoProcessor implements Processor {
 										public void failed(Throwable exc, Void attachment) {
 											TaoLogger.logForce(
 													"Failed to read the rest of the server response after writing back");
-											exc.printStackTrace();
+											exc.printStackTrace(System.out);
 										}
 									});
 								} else {
@@ -1395,17 +1413,17 @@ public class TaoProcessor implements Processor {
 							@Override
 							public void failed(Throwable exc, Void attachment) {
 								TaoLogger.logForce("Failed to read server response header after writing back");
-								exc.printStackTrace();
+								exc.printStackTrace(System.out);
 							}
 						});
 					} catch (Exception e) {
-						TaoLogger.logForce(e.getMessage());
+						e.printStackTrace(System.out);
 					}
 				};
 				mProcessorThreadPool.execute(writebackRunnable);
 			}
 		} catch (Exception e) {
-			TaoLogger.logForce(e.getMessage());
+			e.printStackTrace(System.out);
 		}
 	}
 
@@ -1417,7 +1435,7 @@ public class TaoProcessor implements Processor {
 				try {
 					entry.getValue().close();
 				} catch (IOException e) {
-					TaoLogger.logForce(e.getMessage());
+					e.printStackTrace(System.out);
 				}
 			}
 			mProxyToServerChannelMap.remove(channel);

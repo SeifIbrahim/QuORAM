@@ -165,7 +165,7 @@ public class TaoInterface {
 					try {
 						writeResult.get();
 					} catch (Exception e) {
-						TaoLogger.logForce(e.getMessage());
+						e.printStackTrace(System.out);
 					}
 					// System.out.println("Replied to client");
 				}
