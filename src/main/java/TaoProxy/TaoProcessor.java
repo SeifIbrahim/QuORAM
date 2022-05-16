@@ -689,15 +689,6 @@ public class TaoProcessor implements Processor {
 		byte[] encryptedPathBytes = resp.getPathBytes();
 		Path decryptedPath = mCryptoUtil.decryptPath(encryptedPathBytes);
 
-		// Move any block that is pointed to by the interface's incompleteCache
-		// to the stash
-		/*
-		 * ArrayList<Block> toPutInStash =
-		 * decryptedPath.removeBlocksInSet(mInterface.mBlocksInCache.keySet()); for
-		 * (Block b : toPutInStash) { TaoLogger.logInfo("Put block " + b.getBlockID() +
-		 * " in stash"); mStash.addBlock(b); }
-		 */
-
 		// Set the correct path ID
 		decryptedPath.setPathID(resp.getPathID());
 
@@ -754,7 +745,6 @@ public class TaoProcessor implements Processor {
 			// We need to know this because we need to know if we will be able to find this
 			// element in the path or subtree
 			boolean elementDoesExist = mPositionMap.getBlockPosition(req.getBlockID()) != -1;
-			boolean canPutInPositionMap = true;
 
 			// Acquire write lock so we do not respond to all requests while accidentally
 			// missing a soon to be sent fake read
@@ -815,10 +805,6 @@ public class TaoProcessor implements Processor {
 
 						// Add block to stash and assign random path position
 						mStash.addBlock(newBlock);
-
-						// Assign block with blockID == req.getBlockID() to a new random path in
-						// position map
-						canPutInPositionMap = true;
 					}
 				}
 
@@ -840,21 +826,17 @@ public class TaoProcessor implements Processor {
 				}
 
 				// After the first pass through the loop, the element is guaranteed to exist
-				if (canPutInPositionMap) {
-					elementDoesExist = true;
-				}
+				elementDoesExist = true;
 			}
 
 			// Release lock
 			requestListLock.writeLock().unlock();
 
-			if (canPutInPositionMap) {
-				// Assign block with blockID == req.getBlockID() to a new random path in
-				// position map
-				int newPathID = mCryptoUtil.getRandomPathID();
-				TaoLogger.logInfo("Assigning blockID " + req.getBlockID() + " to path " + newPathID);
-				mPositionMap.setBlockPosition(req.getBlockID(), newPathID);
-			}
+			// Assign block with blockID == req.getBlockID() to a new random path in
+			// position map
+			int newPathID = mCryptoUtil.getRandomPathID();
+			TaoLogger.logInfo("Assigning blockID " + req.getBlockID() + " to path " + newPathID);
+			mPositionMap.setBlockPosition(req.getBlockID(), newPathID);
 		} else {
 			TaoLogger.logInfo("answerRequest requestID " + req.getRequestID() + " from host "
 					+ req.getClientAddress().getHostName() + " was a fake read, and real read has not responded yet");
@@ -1016,7 +998,7 @@ public class TaoProcessor implements Processor {
 			long pid = mPositionMap.getBlockPosition(currentBlock.getBlockID());
 
 			// Check if this block can be inserted at this level
-			if (Utility.getGreatestCommonLevel(pathID, pid) == level) {
+			if (Utility.getGreatestCommonLevel(pathID, pid) >= level) {
 				// If the block can be inserted at this level, get the bucket
 				Bucket pathBucket = pathToFlush.getBucket(level);
 
