@@ -742,6 +742,9 @@ public class TaoClient implements Client {
 			byte[] requestHeader = MessageUtility.createMessageHeaderBytes(request.getType(), serializedRequest.length);
 			ByteBuffer requestMessage = ByteBuffer.wrap(Bytes.concat(requestHeader, serializedRequest));
 
+			// sleep between 0 and 200 ms
+			Thread.sleep(new Random().ints(0, 200).findFirst().getAsInt());
+
 			// Send message to proxy
 			synchronized (mChannels.get(unitID)) {
 				TaoLogger.logDebug("Sending request #" + request.getRequestID());
