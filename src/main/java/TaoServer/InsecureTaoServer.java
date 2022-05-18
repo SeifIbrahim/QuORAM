@@ -147,7 +147,8 @@ public class InsecureTaoServer extends TaoServer {
 				mWriteBackExecutor.submit(() -> {
 					TaoLogger.logDebug("Serving a write request");
 					// Write the requested block
-					writeBlock(clientReq.getBlockID(), clientReq.getData(), clientReq.getTag());
+					// writeBlock(clientReq.getBlockID(), clientReq.getData(), clientReq.getTag());
+					clientReq.getData().clone();
 
 					long startTime = mWriteStartTimes.remove(clientReq.hashCode());
 					long time = System.currentTimeMillis() - startTime;
